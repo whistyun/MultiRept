@@ -27,6 +27,7 @@ namespace MultiRept
 	public partial class MainWindow : Window
 	{
 		private int actNo = 0;
+		private ResultWindow logWindow;
 
 		private DB db = new DB();
 
@@ -113,6 +114,10 @@ namespace MultiRept
 			Progress.Minimum = 0;
 			Progress.Value = 0;
 
+			logWindow = new ResultWindow();
+			logWindow.Folder = directoryPath;
+			logWindow.FilePattern = filePattern;
+
 			// 置換処理
 			var progress = new Progress<int>(SetProgress);
 			await Task.Run(() => DoReplace(directoryPath, filePatterns, encoding, keywords, progress));
@@ -121,6 +126,8 @@ namespace MultiRept
 			ReplaceButton.IsEnabled = true;
 			CancelButton.IsEnabled = actNo > 0;
 			MessageBox.Show("置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
+
+			logWindow.Show();
 		}
 
 		/// <summary>
@@ -191,12 +198,14 @@ namespace MultiRept
 			using (var writer = new StreamWriter(output, false, encoding, 1024 * 10))
 			{
 
+				int lineCnt = 0;
 				string lnCd;
 				string line;
 				StringBuilder newLine = new StringBuilder();
 				while ((line = reader.ReadLine(out lnCd)) != null)
 				{
-
+					lineCnt++;
+					bool findMatch = false;
 					int startAt = 0;
 
 					do
@@ -204,14 +213,22 @@ namespace MultiRept
 						//置換対象キーワードを含んでいるか？
 						var hitKeyAndMatch =
 							 // 全てのキーワードについて検索
-							 keywords.Select(keyword => Tuple.Create(keyword, keyword.ReplaceFromPattern.Match(line, startAt)))
-							 .Where(regres => regres.Item2.Success)
+							 keywords.Select(keyword => Tuple.Create(
+								 keyword,
+								 keyword.ReplaceFromPattern.Matches(line, startAt)
+									.Cast<Match>().Where(m => m.Success && m.Length != 0)
+									.OrderBy(m => m.Index)
+									.FirstOrDefault()
+							 ))
+							 .Where(regres => regres.Item2 != null && regres.Item2.Success && regres.Item2.Length != 0)
 							 // 最初にヒットしたものを対象とする
 							 .OrderBy(regres => regres.Item2.Index)
 							 .FirstOrDefault();
 
 						if (hitKeyAndMatch != null)
 						{
+							findMatch = true;
+
 							var hitKey = hitKeyAndMatch.Item1;
 							var match = hitKeyAndMatch.Item2;
 
@@ -255,13 +272,10 @@ namespace MultiRept
 							}
 
 							// ヒット位置より後の文字をそのままコピー
+							startAt = newLine.Length;
 							newLine.Append(line.Substring(match.Index + match.Length));
-
-
 							line = newLine.ToString();
-							startAt = match.Index + match.Length;
 							newLine.Clear();
-
 						}
 						else
 						{
@@ -270,6 +284,12 @@ namespace MultiRept
 						}
 
 					} while (startAt < line.Length);
+
+					if (findMatch)
+					{
+						OutLog(filepath, lineCnt, line);
+					}
+
 
 					writer.Write(line);
 					if (lnCd != null) writer.Write(lnCd);
@@ -291,6 +311,11 @@ namespace MultiRept
 				File.Delete(filepath);
 				File.Move(output, filepath);
 			}
+		}
+
+		private void OutLog(string filePath, int lineNo, string contents)
+		{
+			logWindow.Add(filePath, lineNo, contents);
 		}
 
 		/// <summary>
