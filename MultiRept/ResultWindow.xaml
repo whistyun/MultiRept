@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MultiRept"
         mc:Ignorable="d"
-        Title="ResultWindow" Height="301.031" Width="354.639" Loaded="Window_Loaded">
+        Title="置換結果" Height="301.031" Width="354.639" Loaded="Window_Loaded">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
@@ -51,6 +51,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="ファイル" Binding="{Binding Path=FilePath}"/>
                 <DataGridTextColumn Header="行番号"    Binding="{Binding Path=LineNo}"/>
+                <DataGridTextColumn Header="エンコード"    Binding="{Binding Path=EncodingName}"/>
                 <DataGridTextColumn Header="置換後テキスト"  Binding="{Binding Path=Contents}"/>
             </DataGrid.Columns>
         </DataGrid>

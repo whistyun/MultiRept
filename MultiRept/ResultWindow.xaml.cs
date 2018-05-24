@@ -53,10 +53,16 @@ namespace MultiRept
 			set; get;
 		}
 
-		public void Add(string filePath, int line, string contents)
+		public void Add(string filePath, int line, string encodingName, string contents)
 		{
 			var relPath = "." + filePath.Substring(folderPath.Length);
-			ResultList.Add(new ResultData { FilePath = relPath, LineNo = line, Contents = contents });
+			ResultList.Add(new ResultData
+			{
+				FilePath = relPath,
+				LineNo = line,
+				EncodingName = encodingName,
+				Contents = contents
+			});
 		}
 
 		private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -69,6 +75,7 @@ namespace MultiRept
 	{
 		public string FilePath { set; get; }
 		public int LineNo { set; get; }
+		public string EncodingName { set; get; }
 		public string Contents { set; get; }
 	}
 }

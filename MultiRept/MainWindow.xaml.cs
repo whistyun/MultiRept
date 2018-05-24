@@ -18,6 +18,7 @@ using System.Windows.Shapes;
 using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
 using FileInfo = System.IO.FileInfo;
+using EncodeDetector;
 
 namespace MultiRept
 {
@@ -98,8 +99,9 @@ namespace MultiRept
 			// 文字コード設定
 			var encoding =
 				 Utf8RadioButton.IsChecked.Value ? new UTF8Encoding(false) :
-				 EucJpRadioButton.IsChecked.Value ? Encoding.GetEncoding(20932) :
-				 Encoding.GetEncoding(932);
+				 EucJpRadioButton.IsChecked.Value ? Encoding.GetEncoding(51932) :
+				 SjisRadioButton.IsChecked.Value ? Encoding.GetEncoding(932) :
+				 null;
 
 			// ファイルパターンを(,)で区切って正規表現のパターンに変換
 			var filePatterns = (from ptn in filePattern.Split(',')
@@ -194,128 +196,159 @@ namespace MultiRept
 			// 出力先
 			var output = IOPath.GetTempFileName();
 
-			using (var reader = new StreamReader(filepath, encoding, false, 1024 * 10))
-			using (var writer = new StreamWriter(output, false, encoding, 1024 * 10))
+			if (encoding == null)
 			{
-
-				int lineCnt = 0;
-				string lnCd;
-				string line;
-				StringBuilder newLine = new StringBuilder();
-				while ((line = reader.ReadLine(out lnCd)) != null)
-				{
-					lineCnt++;
-					bool findMatch = false;
-					int startAt = 0;
-
-					do
-					{
-						//置換対象キーワードを含んでいるか？
-						var hitKeyAndMatch =
-							 // 全てのキーワードについて検索
-							 keywords.Select(keyword => Tuple.Create(
-								 keyword,
-								 keyword.ReplaceFromPattern.Matches(line, startAt)
-									.Cast<Match>().Where(m => m.Success && m.Length != 0)
-									.OrderBy(m => m.Index)
-									.FirstOrDefault()
-							 ))
-							 .Where(regres => regres.Item2 != null && regres.Item2.Success && regres.Item2.Length != 0)
-							 // 最初にヒットしたものを対象とする
-							 .OrderBy(regres => regres.Item2.Index)
-							 .FirstOrDefault();
-
-						if (hitKeyAndMatch != null)
-						{
-							findMatch = true;
-
-							var hitKey = hitKeyAndMatch.Item1;
-							var match = hitKeyAndMatch.Item2;
-
-							replaceOcc = true;
-
-							// ヒット位置より前の文字をそのままコピー
-							newLine.Append(line.Substring(0, match.Index));
-
-							// ヒット位置の文字を変更
-							foreach (ExtendReplaceTo rep in hitKey.ReplaceToPattern)
-							{
-								if (rep.Type == ReplaceToType.Plain)
-								{
-									newLine.Append(rep.Label);
-								}
-								else
-								{
-									Group group = rep.Type == ReplaceToType.GroupIndex ?
-										 match.Groups[rep.Index] :
-										 match.Groups[rep.Label];
-
-									string value = group.Value;
-
-									switch (rep.Change)
-									{
-										case ChangeCase.LowerHead:
-											value = Char.ToLower(value[0]) + value.Substring(1);
-											break;
-										case ChangeCase.LowerAll:
-											value = value.ToLower();
-											break;
-										case ChangeCase.UpperHead:
-											value = Char.ToUpper(value[0]) + value.Substring(1);
-											break;
-										case ChangeCase.UpperAll:
-											value = value.ToUpper();
-											break;
-									}
-									newLine.Append(value);
-								}
-							}
-
-							// ヒット位置より後の文字をそのままコピー
-							startAt = newLine.Length;
-							newLine.Append(line.Substring(match.Index + match.Length));
-							line = newLine.ToString();
-							newLine.Clear();
-						}
-						else
-						{
-							// どのパターンもヒットしていないなら打ち止め、次の行へ
-							break;
-						}
-
-					} while (startAt < line.Length);
-
-					if (findMatch)
-					{
-						OutLog(filepath, lineCnt, line);
-					}
-
-
-					writer.Write(line);
-					if (lnCd != null) writer.Write(lnCd);
-				}
+				var detector = new CodeDetector();
+				encoding = detector.Check(new FileInfo(filepath));
 			}
 
-			if (replaceOcc)
+			if (encoding != null)
 			{
-				//置換が行われた
+				using (var reader = new StreamReader(filepath, encoding, false, 1024 * 20))
+				using (var writer = new StreamWriter(output, false, encoding, 1024 * 20))
+				{
 
-				// 置換前のファイルの退避(DBへ)
-				ReplacedFile key = new ReplacedFile();
-				key.ActNo = actNo;
-				key.FilePath = filepath;
-				key.ReplacedFileHash = Util.MakeHash(output);
-				db.Insert(key, new FileInfo(filepath));
+					int lineCnt = 0;
+					string lnCd;
+					string line;
+					StringBuilder newLine = new StringBuilder();
+					while ((line = reader.ReadLine(out lnCd)) != null)
+					{
+						lineCnt++;
+						bool findMatch = false;
+						int startAt = 0;
 
-				// ファイル置換
-				File.Delete(filepath);
-				File.Move(output, filepath);
+						do
+						{
+							//置換対象キーワードを含んでいるか？
+							var hitKeyAndMatch =
+								 // 全てのキーワードについて検索
+								 keywords.Select(keyword => Tuple.Create(
+									 keyword,
+									 keyword.ReplaceFromPattern.Matches(line, startAt)
+										.Cast<Match>().Where(m => m.Success && m.Length != 0)
+										.OrderBy(m => m.Index)
+										.FirstOrDefault()
+								 ))
+								 .Where(regres => regres.Item2 != null && regres.Item2.Success && regres.Item2.Length != 0)
+								 // 最初にヒットしたものを対象とする
+								 .OrderBy(regres => regres.Item2.Index)
+								 .FirstOrDefault();
+
+							if (hitKeyAndMatch != null)
+							{
+								findMatch = true;
+
+								var hitKey = hitKeyAndMatch.Item1;
+								var match = hitKeyAndMatch.Item2;
+
+								replaceOcc = true;
+
+								// ヒット位置より前の文字をそのままコピー
+								newLine.Append(line.Substring(0, match.Index));
+
+								// ヒット位置の文字を変更
+								foreach (ExtendReplaceTo rep in hitKey.ReplaceToPattern)
+								{
+									if (rep.Type == ReplaceToType.Plain)
+									{
+										newLine.Append(rep.Label);
+									}
+									else
+									{
+										Group group = rep.Type == ReplaceToType.GroupIndex ?
+											 match.Groups[rep.Index] :
+											 match.Groups[rep.Label];
+
+										string value = group.Value;
+
+										switch (rep.Change)
+										{
+											case ChangeCase.LowerHead:
+												value = Char.ToLower(value[0]) + value.Substring(1);
+												break;
+											case ChangeCase.LowerAll:
+												value = value.ToLower();
+												break;
+											case ChangeCase.UpperHead:
+												value = Char.ToUpper(value[0]) + value.Substring(1);
+												break;
+											case ChangeCase.UpperAll:
+												value = value.ToUpper();
+												break;
+										}
+										newLine.Append(value);
+									}
+								}
+
+								// ヒット位置より後の文字をそのままコピー
+								startAt = newLine.Length;
+								newLine.Append(line.Substring(match.Index + match.Length));
+								line = newLine.ToString();
+								newLine.Clear();
+							}
+							else
+							{
+								// どのパターンもヒットしていないなら打ち止め、次の行へ
+								break;
+							}
+
+						} while (startAt < line.Length);
+
+						if (findMatch)
+						{
+							OutLog(filepath, lineCnt, encoding, line);
+						}
+
+
+						writer.Write(line);
+						if (lnCd != null) writer.Write(lnCd);
+					}
+				}
+
+				if (replaceOcc)
+				{
+					//置換が行われた
+
+					// 置換前のファイルの退避(DBへ)
+					ReplacedFile key = new ReplacedFile();
+					key.ActNo = actNo;
+					key.FilePath = filepath;
+					key.ReplacedFileHash = Util.MakeHash(output);
+					db.Insert(key, new FileInfo(filepath));
+
+					// ファイル置換
+					File.Delete(filepath);
+					File.Move(output, filepath);
+				}
 			}
 		}
 
-		private void OutLog(string filePath, int lineNo, string contents)
+		private void OutLog(string filePath, int lineNo, Encoding encoding, string contents)
 		{
-			logWindow.Add(filePath, lineNo, contents);
+			string encodingName;
+			if (encoding is UTF8Encoding)
+			{
+				var utf8 = encoding as UTF8Encoding;
+				encodingName = utf8.GetPreamble().Length == 0 ? "UTF-8" : "UTF-8(BOM)";
+			}
+			else switch (encoding.CodePage)
+				{
+					case 20932:
+					case 51932:
+						encodingName = "EUC-JP";
+						break;
+					case 932:
+						encodingName = "SJIS";
+						break;
+					default:
+						encodingName = encoding.WebName;
+						break;
+
+				}
+
+
+			logWindow.Add(filePath, lineNo, encodingName, contents);
 		}
 
 		/// <summary>

@@ -8,18 +8,20 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 
-namespace MultiRept {
-    class DB : IDisposable {
-        private const int BUFFER_SIZE = 4 * 1024;
+namespace MultiRept
+{
+	class DB : IDisposable
+	{
+		private const int BUFFER_SIZE = 4 * 1024;
 
-        private const string FILEINFO_CREATE = @"
+		private const string FILEINFO_CREATE = @"
             create table t_fileinfo( 
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 act_no          INTEGER,
                 filepath        TEXT,
                 guarantee_hash  TEXT
             )";
-        private const string FILESTORE_CREATE = @"
+		private const string FILESTORE_CREATE = @"
             create table t_filestore(
                 id              INTEGER PRIMARY KEY,
                 bin             BLOB
@@ -27,159 +29,189 @@ namespace MultiRept {
             ";
 
 
-        static readonly string DB_TEMP;
-        static DB() {
-            DB_TEMP = Path.GetTempFileName();
+		static readonly string DB_TEMP;
+		static DB()
+		{
+			DB_TEMP = Path.GetTempFileName();
 
-            var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
-            using (var cn = new SQLiteConnection(sqlConnectionSb.ToString())) {
-                cn.Open();
+			var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
+			using (var cn = new SQLiteConnection(sqlConnectionSb.ToString()))
+			{
+				cn.Open();
 
-                using (var cmd = new SQLiteCommand(cn)) {
-                    cmd.CommandText = FILEINFO_CREATE;
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = FILESTORE_CREATE;
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
+				using (var cmd = new SQLiteCommand(cn))
+				{
+					cmd.CommandText = FILEINFO_CREATE;
+					cmd.ExecuteNonQuery();
+					cmd.CommandText = FILESTORE_CREATE;
+					cmd.ExecuteNonQuery();
+				}
+			}
+		}
 
-        SQLiteConnection conn;
+		SQLiteConnection conn;
 
-        public DB() {
-            var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
-            conn = new SQLiteConnection(sqlConnectionSb.ToString());
-            conn.Open();
-        }
+		public DB()
+		{
+			var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
+			conn = new SQLiteConnection(sqlConnectionSb.ToString());
+			conn.Open();
+		}
 
-        public void Dispose() {
-            if (conn != null) {
-                conn.Close();
-                File.Delete(DB_TEMP);
-            }
-        }
+		public void Dispose()
+		{
+			if (conn != null)
+			{
+				conn.Close();
+				File.Delete(DB_TEMP);
+			}
+		}
 
-        public int Insert(ReplacedFile filekey, FileInfo uploadFile) {
-            using (var cmd = new SQLiteCommand(conn)) {
-                cmd.CommandText = @"insert into t_fileinfo (act_no, filepath, guarantee_hash) values (?,?,?)";
-                cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ActNo });
-                cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.FilePath });
-                cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ReplacedFileHash });
-                cmd.ExecuteNonQuery();
+		public int Insert(ReplacedFile filekey, FileInfo uploadFile)
+		{
+			using (var transaction = conn.BeginTransaction())
+			using (var cmd = new SQLiteCommand(conn))
+			{
+				cmd.CommandText = @"insert into t_fileinfo (act_no, filepath, guarantee_hash) values (?,?,?)";
+				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ActNo });
+				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.FilePath });
+				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ReplacedFileHash });
+				cmd.ExecuteNonQuery();
 
-                int lastInsertId;
+				int lastInsertId;
 
-                cmd.Parameters.Clear();
-                cmd.CommandText = "select last_insert_rowid()";
-                using (var reader = cmd.ExecuteReader()) {
-                    reader.Read();
-                    lastInsertId = reader.GetInt32(0);
-                }
+				cmd.Parameters.Clear();
+				cmd.CommandText = "select last_insert_rowid()";
+				using (var reader = cmd.ExecuteReader())
+				{
+					reader.Read();
+					lastInsertId = reader.GetInt32(0);
+				}
 
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"insert into t_filestore (id, bin) values (?,zeroblob(?))";
-                cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
-                cmd.Parameters.Add(new SQLiteParameter() { Value = uploadFile.Length });
-                cmd.ExecuteNonQuery();
+				cmd.Parameters.Clear();
+				cmd.CommandText = @"insert into t_filestore (id, bin) values (?,zeroblob(?))";
+				cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
+				cmd.Parameters.Add(new SQLiteParameter() { Value = uploadFile.Length });
+				cmd.ExecuteNonQuery();
 
-                cmd.Parameters.Clear();
-                cmd.CommandText = "select id as bin from t_filestore where id = ?";
-                cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
-                using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo)) {
-                    reader.Read();
+				cmd.Parameters.Clear();
+				cmd.CommandText = "select id as bin from t_filestore where id = ?";
+				cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
+				using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo))
+				{
+					reader.Read();
 
-                    using (var blob = reader.GetBlob(0, false)) {
-                        using (var stream = uploadFile.OpenRead()) {
-                            byte[] buffer = new byte[BUFFER_SIZE];
-                            int blobOffest = 0;
+					using (var blob = reader.GetBlob(0, false))
+					{
+						using (var stream = uploadFile.OpenRead())
+						{
+							byte[] buffer = new byte[BUFFER_SIZE];
+							int blobOffest = 0;
 
-                            for (; ; ) {
-                                int read = stream.Read(buffer, 0, buffer.Length);
-                                if (read <= 0) break;
+							for (; ; )
+							{
+								int read = stream.Read(buffer, 0, buffer.Length);
+								if (read <= 0) break;
 
-                                blob.Write(buffer, read, blobOffest);
-                                blobOffest += read;
-                            }
-                        }
-                    }
-                }
+								blob.Write(buffer, read, blobOffest);
+								blobOffest += read;
+							}
+						}
+					}
+				}
 
-                filekey.Id = lastInsertId;
-                return lastInsertId;
-            }
-        }
+				transaction.Commit();
 
-        public void DeleteActNo(int actNo) {
-            var delete1 = "delete from t_filestore where id in (select id from t_fileinfo where act_no=?)";
-            var delete2 = "delete from t_fileinfo where act_no=?";
+				filekey.Id = lastInsertId;
+				return lastInsertId;
+			}
+		}
 
-            using (var cmd = new SQLiteCommand(conn)) {
-                cmd.Parameters.Add(new SQLiteParameter() { Value = actNo });
-                cmd.CommandText = delete1;
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = delete2;
-                cmd.ExecuteNonQuery();
-            }
-        }
+		public void DeleteActNo(int actNo)
+		{
+			var delete1 = "delete from t_filestore where id in (select id from t_fileinfo where act_no=?)";
+			var delete2 = "delete from t_fileinfo where act_no=?";
 
-        public FileInfo Select(ReplacedFile filekey) {
-            return this.Select(filekey.Id);
-        }
+			using (var cmd = new SQLiteCommand(conn))
+			{
+				cmd.Parameters.Add(new SQLiteParameter() { Value = actNo });
+				cmd.CommandText = delete1;
+				cmd.ExecuteNonQuery();
+				cmd.CommandText = delete2;
+				cmd.ExecuteNonQuery();
+			}
+		}
 
-        public FileInfo Select(int id, FileInfo outTo = null) {
-            using (var cmd = new SQLiteCommand(conn)) {
-                cmd.CommandText = "select id as bin, length(bin) as bin_length from t_filestore where id = ?";
-                cmd.Parameters.Add(new SQLiteParameter() { Value = id });
-                using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo)) {
-                    if (reader.Read()) {
+		public FileInfo Select(ReplacedFile filekey)
+		{
+			return this.Select(filekey.Id);
+		}
 
-                        var output = outTo ?? new FileInfo(Path.GetTempFileName());
+		public FileInfo Select(int id, FileInfo outTo = null)
+		{
+			using (var cmd = new SQLiteCommand(conn))
+			{
+				cmd.CommandText = "select id as bin, length(bin) as bin_length from t_filestore where id = ?";
+				cmd.Parameters.Add(new SQLiteParameter() { Value = id });
+				using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo))
+				{
+					if (reader.Read())
+					{
 
-                        int blobLength = reader.GetInt32(1);
-                        int blobOffest = 0;
+						var output = outTo ?? new FileInfo(Path.GetTempFileName());
 
-                        byte[] buffer = new byte[BUFFER_SIZE];
+						int blobLength = reader.GetInt32(1);
+						int blobOffest = 0;
 
-                        using (var blob = reader.GetBlob(0, false))
-                        using (var writer = output.OpenWrite()) {
-                            while (blobOffest < blobLength) {
-                                int read = Math.Min(buffer.Length, blobLength - blobOffest);
-                                blob.Read(buffer, read, blobOffest);
-                                writer.Write(buffer, 0, read);
+						byte[] buffer = new byte[BUFFER_SIZE];
 
-                                blobOffest += read;
-                            }
-                        }
-                        return output;
+						using (var blob = reader.GetBlob(0, false))
+						using (var writer = output.OpenWrite())
+						{
+							while (blobOffest < blobLength)
+							{
+								int read = Math.Min(buffer.Length, blobLength - blobOffest);
+								blob.Read(buffer, read, blobOffest);
+								writer.Write(buffer, 0, read);
 
-                    } else {
-                        return null;
-                    }
-                }
-            }
-        }
+								blobOffest += read;
+							}
+						}
+						return output;
 
-        public List<ReplacedFile> SelectFileInfos(int actNo) {
-            using (var context = new DataContext(conn)) {
-                var table = context.GetTable<ReplacedFile>();
-                return table.Where(s => s.ActNo == actNo).ToList();
-            }
-        }
-    }
+					}
+					else
+					{
+						return null;
+					}
+				}
+			}
+		}
 
-    [Table(Name = "t_fileinfo")]
-    class ReplacedFile {
-        [Column(Name = "id", CanBeNull = false, DbType = "INT", IsPrimaryKey = true)]
-        public int Id { set; get; }
+		public List<ReplacedFile> SelectFileInfos(int actNo)
+		{
+			using (var context = new DataContext(conn))
+			{
+				var table = context.GetTable<ReplacedFile>();
+				return table.Where(s => s.ActNo == actNo).ToList();
+			}
+		}
+	}
 
-        [Column(Name = "act_no", CanBeNull = false, DbType = "INT")]
-        public int ActNo { set; get; }
+	[Table(Name = "t_fileinfo")]
+	class ReplacedFile
+	{
+		[Column(Name = "id", CanBeNull = false, DbType = "INT", IsPrimaryKey = true)]
+		public int Id { set; get; }
 
-        [Column(Name = "filepath", CanBeNull = false, DbType = "TEXT")]
-        public string FilePath { set; get; }
+		[Column(Name = "act_no", CanBeNull = false, DbType = "INT")]
+		public int ActNo { set; get; }
 
-        [Column(Name = "guarantee_hash", CanBeNull = false, DbType = "TEXT")]
-        public string ReplacedFileHash { set; get; }
+		[Column(Name = "filepath", CanBeNull = false, DbType = "TEXT")]
+		public string FilePath { set; get; }
 
-    }
+		[Column(Name = "guarantee_hash", CanBeNull = false, DbType = "TEXT")]
+		public string ReplacedFileHash { set; get; }
+
+	}
 }
