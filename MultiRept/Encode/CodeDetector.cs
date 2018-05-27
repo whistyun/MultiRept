@@ -34,35 +34,33 @@ namespace EncodeDetector
 			// BOM判定用の先頭バイト
 			byte[] topByte;
 
-			int bufferOffset = 0;
-			int bufferLength;
+			int buffeEndIndex;
+
 			byte[] buffer = new byte[LEN];
+			// 最終的に読み込んだバイト数
 			int totalBufferLength = 0;
 
 			using (System.IO.FileStream fs = finfo.OpenRead())
 			{
+				// 初回の読み込み
+				buffeEndIndex = fs.Read(buffer, 0, LEN);
 
-				bufferLength = fs.Read(buffer, bufferOffset, LEN - bufferOffset);
-
-				if (bufferLength > 0)
+				if (buffeEndIndex > 0)
 				{
-					topByte = new byte[bufferLength];
-					Array.Copy(buffer, topByte, bufferLength);
+					// 先頭の数バイトはBOMチェックに使用する
+					topByte = new byte[buffeEndIndex];
+					Array.Copy(buffer, topByte, buffeEndIndex);
 
-					do
+					while (buffeEndIndex > 0)
 					{
-						totalBufferLength += bufferLength;
-						if (totalBufferLength >= limit) break;
+						var bufferOffsetLimit = buffeEndIndex;
+						var consumeIndex = Int32.MaxValue;
 
-						int bufferCapacity = bufferLength + bufferOffset;
-
-						//候補一覧ごとのスコアを計算
 						for (int i = predicts.Count - 1; i >= 0; i--)
 						{
 							var predict = predicts[i];
 							var model = predict.Model;
-
-							var scoreAppend = model.Check(buffer, ref predict.Index, bufferCapacity);
+							var scoreAppend = model.Check(buffer, ref predict.Index, bufferOffsetLimit);
 
 							if (scoreAppend < 0)
 							{
@@ -78,9 +76,30 @@ namespace EncodeDetector
 							else
 							{
 								predict.Score += scoreAppend;
+								consumeIndex = Math.Min(consumeIndex, predict.Index);
 							}
 						}
-					} while ((bufferLength = fs.Read(buffer, bufferOffset, LEN - bufferOffset)) > 0);
+
+						// すでに消費済みの分は削除
+						if (consumeIndex != 0 && consumeIndex != Int32.MaxValue)
+						{
+							Array.Copy(buffer, consumeIndex, buffer, 0, buffer.Length - consumeIndex);
+							foreach (var predict in predicts)
+							{
+								predict.Index -= consumeIndex;
+							}
+
+							// 削除した分を読み込む
+							buffeEndIndex -= consumeIndex;
+							buffeEndIndex += fs.Read(buffer,
+								buffeEndIndex,
+								buffer.Length - buffeEndIndex);
+						}
+
+						totalBufferLength += consumeIndex;
+
+						if (totalBufferLength >= limit) break;
+					}
 
 					//集約後、優先度・一致文字数でソート
 					var encoding = (from a in predicts
@@ -94,6 +113,7 @@ namespace EncodeDetector
 					//ファイルが空
 					return null;
 				}
+
 			}
 		}
 
