@@ -15,8 +15,8 @@ namespace EncodeDetector
 
 		public CodeDetector()
 		{
-			encodeMaster.Add(new EucJP());
 			encodeMaster.Add(new Sjis());
+			encodeMaster.Add(new EucJP());
 			encodeMaster.Add(new Utf8());
 
 			foreach (EncodeModel mode in encodeMaster)
