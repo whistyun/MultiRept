@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Data;
 
 namespace MultiRept
 {
@@ -63,13 +64,21 @@ namespace MultiRept
 			if (conn != null)
 			{
 				conn.Close();
-				File.Delete(DB_TEMP);
+				try
+				{
+					File.Delete(DB_TEMP);
+				}
+				catch (IOException) { /*ignore*/}
 			}
+		}
+
+		public IDbTransaction BeginTransaction()
+		{
+			return conn.BeginTransaction();
 		}
 
 		public int Insert(ReplacedFile filekey, FileInfo uploadFile)
 		{
-			using (var transaction = conn.BeginTransaction())
 			using (var cmd = new SQLiteCommand(conn))
 			{
 				cmd.CommandText = @"insert into t_fileinfo (act_no, filepath, guarantee_hash) values (?,?,?)";
@@ -119,8 +128,6 @@ namespace MultiRept
 						}
 					}
 				}
-
-				transaction.Commit();
 
 				filekey.Id = lastInsertId;
 				return lastInsertId;

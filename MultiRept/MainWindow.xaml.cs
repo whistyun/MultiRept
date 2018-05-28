@@ -22,6 +22,10 @@ using EncodeDetector;
 
 namespace MultiRept
 {
+
+	delegate void DialogAlert(string message);
+	delegate MessageBoxResult DialogConfirm(string message);
+
 	/// <summary>
 	/// MainWindow.xaml の相互作用ロジック
 	/// </summary>
@@ -64,7 +68,7 @@ namespace MultiRept
 			// チェック：ディレクトリは未入力でないか？
 			if (directoryPath == "")
 			{
-				MessageBox.Show("フォルダを選択してください", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+				MessageBox.Show(this, "フォルダを選択してください", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
 				directoryTextBox.Focus();
 				return;
 			}
@@ -72,7 +76,7 @@ namespace MultiRept
 			// チェック：ディレクトリは存在するか？
 			if (!Directory.Exists(directoryPath))
 			{
-				MessageBox.Show("指定されたフォルダは存在しません", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+				MessageBox.Show(this, "指定されたフォルダは存在しません", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
 				directoryTextBox.Focus();
 				return;
 			}
@@ -80,7 +84,7 @@ namespace MultiRept
 			// チェック：ファイルパターンが(わざわざ)未入力にされていないか
 			if (filePattern.Trim() == "")
 			{
-				MessageBox.Show("ファイルパターンが未入力です", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+				MessageBox.Show(this, "ファイルパターンが未入力です", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
 				filePatternTextBox.Focus();
 				return;
 			}
@@ -89,7 +93,7 @@ namespace MultiRept
 			var emptyKeywordsExists = keywordComponents.Where(elem => elem.ReplaceFrom == "").Count() != 0;
 			if (emptyKeywordsExists)
 			{
-				MessageBox.Show("置換キーワードに未入力なものが含まれます", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+				MessageBox.Show(this, "置換キーワードに未入力なものが含まれます", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
 				return;
 			}
 
@@ -125,9 +129,9 @@ namespace MultiRept
 			await Task.Run(() => DoReplace(directoryPath, filePatterns, encoding, keywords, progress));
 
 			/*置換処理完了*/
+			MessageBox.Show(this, "置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
 			ReplaceButton.IsEnabled = true;
 			CancelButton.IsEnabled = actNo > 0;
-			MessageBox.Show("置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
 
 			logWindow.Show();
 		}
@@ -178,7 +182,15 @@ namespace MultiRept
 
 			foreach (var target in targets)
 			{
-				TryReplace(target, encoding, keywords);
+				try
+				{
+					StartLog();
+					TryReplace(target, encoding, keywords);
+				}
+				catch (IOException ioe)
+				{
+					OutErrLog(target, ioe.Message);
+				}
 				informer.Report((int)(Int32.MaxValue * index / total));
 				++index;
 			}
@@ -308,22 +320,34 @@ namespace MultiRept
 
 				if (replaceOcc)
 				{
-					//置換が行われた
+					using (var transaction = db.BeginTransaction())
+					{
+						// 置換前のファイルの退避(DBへ)
+						ReplacedFile key = new ReplacedFile();
+						key.ActNo = actNo;
+						key.FilePath = filepath;
+						key.ReplacedFileHash = Util.MakeHash(output);
+						db.Insert(key, new FileInfo(filepath));
 
-					// 置換前のファイルの退避(DBへ)
-					ReplacedFile key = new ReplacedFile();
-					key.ActNo = actNo;
-					key.FilePath = filepath;
-					key.ReplacedFileHash = Util.MakeHash(output);
-					db.Insert(key, new FileInfo(filepath));
+						// ファイル置換
+						File.Delete(filepath);
+						File.Move(output, filepath);
 
-					// ファイル置換
-					File.Delete(filepath);
-					File.Move(output, filepath);
+						transaction.Commit();
+					}
 				}
 			}
 		}
 
+		private void StartLog()
+		{
+			logWindow.StartLog();
+		}
+
+		private void OutErrLog(string filePath, string message)
+		{
+			logWindow.AddError(filePath, message);
+		}
 		private void OutLog(string filePath, int lineNo, Encoding encoding, string contents)
 		{
 			string encodingName;
@@ -374,12 +398,12 @@ namespace MultiRept
 			if (result)
 			{
 				db.DeleteActNo(actNo);
-				MessageBox.Show("置換処理を取り消しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
+				MessageBox.Show(this, "置換処理を取り消しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
 				actNo--;
 			}
 			else
 			{
-				MessageBox.Show("置換処理の取り消しを取り消しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
+				MessageBox.Show(this, "置換処理の取り消しを取り消しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
 			}
 
 			ReplaceButton.IsEnabled = true;
@@ -396,21 +420,80 @@ namespace MultiRept
 
 			if (fileinfoLen == 0) { return true; }
 
+			var userChangedfile = new List<string>();
+			var userLockedfile = new List<string>();
+
 			// ハッシュ値チェック
 			foreach (var fileinfo in fileinfos)
 			{
 				--fileinfoIdx;
 
-				string nowHash = Util.MakeHash(fileinfo.FilePath);
-				string storeHash = fileinfo.ReplacedFileHash;
-
-				if (nowHash != storeHash)
+				try
 				{
+					string nowHash = Util.MakeHash(fileinfo.FilePath);
+					string storeHash = fileinfo.ReplacedFileHash;
+					if (nowHash != storeHash)
+					{
+						userChangedfile.Add(fileinfo.FilePath);
+					}
+				}
+				catch (FileNotFoundException)
+				{
+					userChangedfile.Add(fileinfo.FilePath);
+				}
+				catch (IOException)
+				{
+					userLockedfile.Add(fileinfo.FilePath);
+				}
+
+
+
+				if (userLockedfile.Count != 0)
+				{
+					var lockedFiles = new StringBuilder();
+					for (int i = 0; i < Math.Min(10, userLockedfile.Count); ++i)
+					{
+						lockedFiles.Append("・").Append(userLockedfile[i]).Append("\r\n");
+					}
+					if (10 < userLockedfile.Count)
+					{
+						lockedFiles.Append("...");
+					}
+
+					fileinfoIdx = fileinfoLen;
+
+					Dispatcher.Invoke((DialogAlert)delegate (string msg)
+					{
+						MessageBox.Show(this, msg, "エラー", MessageBoxButton.OK);
+					},
+						"取消対象のファイルを別のプログラムが開いているため、\r\n" +
+						"取消操作が開始できません。\r\n" + lockedFiles.ToString()
+					);
+
+					return false;
+				}
+
+				if (userChangedfile.Count != 0)
+				{
+					var changedFiles = new StringBuilder();
+					for (int i = 0; i < Math.Min(10, userChangedfile.Count); ++i)
+					{
+						changedFiles.Append("・").Append(userChangedfile[i]).Append("\r\n");
+					}
+					if (10 < userChangedfile.Count)
+					{
+						changedFiles.Append("...");
+					}
+
 					fileinfoIdx = fileinfoLen / 2;
-					var result = MessageBox.Show(
-						 "置換後にファイルの変更が行われているようです。\r\n本当に取り消しますか？",
-						 "確認",
-						 MessageBoxButton.YesNo);
+
+					var result = (MessageBoxResult)Dispatcher.Invoke((DialogConfirm)delegate (string msg)
+					{
+						return MessageBox.Show(this, msg, "確認", MessageBoxButton.YesNo);
+					},
+						"置換後にファイルの変更が行われているようです。\r\n" +
+						"本当に取り消しますか？\r\n" + changedFiles.ToString()
+					);
 
 					if (result == MessageBoxResult.Yes)
 					{
@@ -431,7 +514,28 @@ namespace MultiRept
 			foreach (var fileinfo in fileinfos)
 			{
 				--fileinfoIdx;
-				db.Select(fileinfo.Id, new FileInfo(fileinfo.FilePath));
+				do
+				{
+					try
+					{
+						db.Select(fileinfo.Id, new FileInfo(fileinfo.FilePath));
+						break;
+					}
+					catch (IOException)
+					{
+						Dispatcher.Invoke((DialogAlert)delegate (string msg)
+						{
+							MessageBox.Show(this, msg, "エラー", MessageBoxButton.OK);
+						},
+							"下記のファイルを変更できませんでした。\r\n" +
+							"他のプログラムで開いていいないか確認してださい。\r\n" +
+							"(OKボタンで変更を再開します)\r\n" +
+							fileinfo.FilePath
+						);
+					}
+				} while (true);
+
+
 				informer.Report((int)(Int32.MaxValue * fileinfoIdx / fileinfoLen));
 			}
 

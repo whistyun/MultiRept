@@ -53,6 +53,31 @@ namespace MultiRept
 			set; get;
 		}
 
+		private int resultListStartIndex;
+
+
+		public void StartLog()
+		{
+			resultListStartIndex = ResultList.Count;
+		}
+
+		public void AddError(string filePath, string message)
+		{
+			if (resultListStartIndex != -1 && ResultList.Count > resultListStartIndex)
+			{
+				ResultList.RemoveRange(resultListStartIndex, ResultList.Count - resultListStartIndex);
+				resultListStartIndex = -1;
+			}
+
+			var relPath = "." + filePath.Substring(folderPath.Length);
+			ResultList.Add(new ResultData
+			{
+				FilePath = relPath,
+				Contents = "<エラー> " + message.Trim(),
+				IsError = true
+			});
+		}
+
 		public void Add(string filePath, int line, string encodingName, string contents)
 		{
 			var relPath = "." + filePath.Substring(folderPath.Length);
@@ -61,7 +86,8 @@ namespace MultiRept
 				FilePath = relPath,
 				LineNo = line,
 				EncodingName = encodingName,
-				Contents = contents
+				Contents = contents,
+				IsError = false
 			});
 		}
 
@@ -77,5 +103,6 @@ namespace MultiRept
 		public int LineNo { set; get; }
 		public string EncodingName { set; get; }
 		public string Contents { set; get; }
+		public bool IsError { set; get; }
 	}
 }

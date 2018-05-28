@@ -52,7 +52,17 @@
                 <DataGridTextColumn Header="ファイル" Binding="{Binding Path=FilePath}"/>
                 <DataGridTextColumn Header="行番号"    Binding="{Binding Path=LineNo}"/>
                 <DataGridTextColumn Header="エンコード"    Binding="{Binding Path=EncodingName}"/>
-                <DataGridTextColumn Header="置換後テキスト"  Binding="{Binding Path=Contents}"/>
+                <DataGridTextColumn Header="置換後テキスト"  Binding="{Binding Path=Contents}">
+                    <DataGridTextColumn.CellStyle>
+                        <Style TargetType="{x:Type DataGridCell}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=IsError}" Value="True">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
 
