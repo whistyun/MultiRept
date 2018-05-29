@@ -56,6 +56,22 @@ namespace MultiRept
 				return BitConverter.ToString(hash);
 			}
 		}
+
+
+		public static void DeleteDir(string path)
+		{
+			foreach (var sub in Directory.GetFiles(path))
+			{
+				File.Delete(sub);
+			}
+
+			foreach (var sub in Directory.GetDirectories(path))
+			{
+				DeleteDir(sub);
+			}
+
+			Directory.Delete(path);
+		}
 	}
 
 

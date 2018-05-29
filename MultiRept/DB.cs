@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
 using System.Data.Linq;
 using System.Data.Linq.Mapping;
 using System.Linq;
@@ -8,217 +7,280 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Data;
+using System.Diagnostics;
+using System.Runtime.Serialization.Json;
+using System.Reflection;
 
 namespace MultiRept
 {
-	class DB : IDisposable
+	class FileStore : IDisposable
 	{
-		private const int BUFFER_SIZE = 4 * 1024;
+		DirectoryInfo root;
 
-		private const string FILEINFO_CREATE = @"
-            create table t_fileinfo( 
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                act_no          INTEGER,
-                filepath        TEXT,
-                guarantee_hash  TEXT
-            )";
-		private const string FILESTORE_CREATE = @"
-            create table t_filestore(
-                id              INTEGER PRIMARY KEY,
-                bin             BLOB
-            )
-            ";
+		int actNo;
+		FileInfo actFile;
+		DirectoryInfo actDir;
+		StreamWriter actFileWriter;
 
+		List<ReplacedFile> replaceList;
 
-		static readonly string DB_TEMP;
-		static DB()
+		public FileStore(string prefix = "MultiRept")
 		{
-			DB_TEMP = Path.GetTempFileName();
+			var pid = Process.GetCurrentProcess().Id;
 
-			var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
-			using (var cn = new SQLiteConnection(sqlConnectionSb.ToString()))
+			do
 			{
-				cn.Open();
+				var stamp = DateTime.UtcNow.ToString("yyyyMMdd.HHmmss.fff");
+				var folderName = Path.Combine(Path.GetTempPath(), prefix + pid + "_" + stamp);
 
-				using (var cmd = new SQLiteCommand(cn))
+				if (!Directory.Exists(folderName))
 				{
-					cmd.CommandText = FILEINFO_CREATE;
-					cmd.ExecuteNonQuery();
-					cmd.CommandText = FILESTORE_CREATE;
-					cmd.ExecuteNonQuery();
+					root = Directory.CreateDirectory(folderName);
+					break;
 				}
-			}
-		}
-
-		SQLiteConnection conn;
-
-		public DB()
-		{
-			var sqlConnectionSb = new SQLiteConnectionStringBuilder { DataSource = DB_TEMP };
-			conn = new SQLiteConnection(sqlConnectionSb.ToString());
-			conn.Open();
+			} while (true);
 		}
 
 		public void Dispose()
 		{
-			if (conn != null)
+			if (this.actFileWriter != null)
 			{
-				conn.Close();
-				try
+				actFileWriter.Close();
+			}
+
+			foreach (var file in root.GetFiles())
+			{
+				file.Delete();
+			}
+
+			foreach (var dir in root.GetDirectories())
+			{
+				Util.DeleteDir(dir.FullName);
+			}
+
+			actNo = 0;
+			actDir = null;
+			replaceList = null;
+		}
+
+		public void NewAct()
+		{
+			if (this.actFileWriter != null)
+			{
+				actFileWriter.Close();
+			}
+
+			this.actNo = actNo + 1;
+
+			this.actDir = root.CreateSubdirectory(actNo.ToString());
+			this.actFile = new FileInfo(Path.Combine(root.FullName, actNo.ToString() + ".info"));
+
+			this.replaceList = new List<ReplacedFile>();
+
+			this.actFileWriter = new StreamWriter(
+				actFile.OpenWrite(),
+				new UTF8Encoding(),
+				1024 * 5);
+		}
+
+		public void DeleteAct()
+		{
+			if (this.actFileWriter != null)
+			{
+				actFileWriter.Close();
+			}
+
+			var actDir = Path.Combine(root.FullName, actNo.ToString());
+			var actInfo = Path.Combine(root.FullName, actNo.ToString() + ".info");
+			Util.DeleteDir(actDir);
+			File.Delete(actInfo);
+
+			this.actNo = actNo - 1;
+
+			if (HasStore)
+			{
+				this.actDir = new DirectoryInfo(Path.Combine(root.FullName, actNo.ToString()));
+				this.actFile = new FileInfo(Path.Combine(root.FullName, actNo.ToString() + ".info"));
+
+				var replaceListTxt = File.ReadAllText(this.actFile.FullName, new UTF8Encoding());
+				if (replaceListTxt.Length != 0)
 				{
-					File.Delete(DB_TEMP);
+					this.replaceList = replaceListTxt.Split('\n').Select(s => ReplacedFile.ValueOf(s)).ToList();
 				}
-				catch (IOException) { /*ignore*/}
-			}
-		}
-
-		public IDbTransaction BeginTransaction()
-		{
-			return conn.BeginTransaction();
-		}
-
-		public int Insert(ReplacedFile filekey, FileInfo uploadFile)
-		{
-			using (var cmd = new SQLiteCommand(conn))
-			{
-				cmd.CommandText = @"insert into t_fileinfo (act_no, filepath, guarantee_hash) values (?,?,?)";
-				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ActNo });
-				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.FilePath });
-				cmd.Parameters.Add(new SQLiteParameter() { Value = filekey.ReplacedFileHash });
-				cmd.ExecuteNonQuery();
-
-				int lastInsertId;
-
-				cmd.Parameters.Clear();
-				cmd.CommandText = "select last_insert_rowid()";
-				using (var reader = cmd.ExecuteReader())
+				else
 				{
-					reader.Read();
-					lastInsertId = reader.GetInt32(0);
+					this.replaceList = new List<ReplacedFile>();
 				}
 
-				cmd.Parameters.Clear();
-				cmd.CommandText = @"insert into t_filestore (id, bin) values (?,zeroblob(?))";
-				cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
-				cmd.Parameters.Add(new SQLiteParameter() { Value = uploadFile.Length });
-				cmd.ExecuteNonQuery();
+				this.actFileWriter = new StreamWriter(
+					new FileStream(this.actFile.FullName, FileMode.Append),
+					new UTF8Encoding(),
+					1024 * 5);
+			}
+		}
 
-				cmd.Parameters.Clear();
-				cmd.CommandText = "select id as bin from t_filestore where id = ?";
-				cmd.Parameters.Add(new SQLiteParameter() { Value = lastInsertId });
-				using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo))
+		public bool HasStore
+		{
+			get { return actNo > 0; }
+		}
+
+		public void Insert(string filepath, string hash, Delegate invoker, params object[] param)
+		{
+			var key = new ReplacedFile()
+			{
+				ActNo = actNo,
+				Id = replaceList.Count,
+				FilePath = filepath,
+				ReplacedFileHash = hash
+			};
+			var entityPath = Path.Combine(actDir.FullName, key.Id.ToString());
+
+			replaceList.Add(key);
+			File.Copy(filepath, entityPath);
+
+			try
+			{
+				invoker.DynamicInvoke(param);
+				if (replaceList.Count > 1)
 				{
-					reader.Read();
-
-					using (var blob = reader.GetBlob(0, false))
-					{
-						using (var stream = uploadFile.OpenRead())
-						{
-							byte[] buffer = new byte[BUFFER_SIZE];
-							int blobOffest = 0;
-
-							for (; ; )
-							{
-								int read = stream.Read(buffer, 0, buffer.Length);
-								if (read <= 0) break;
-
-								blob.Write(buffer, read, blobOffest);
-								blobOffest += read;
-							}
-						}
-					}
+					actFileWriter.Write('\n');
 				}
-
-				filekey.Id = lastInsertId;
-				return lastInsertId;
+				actFileWriter.Write(key.ToString());
+				actFileWriter.Flush();
 			}
-		}
-
-		public void DeleteActNo(int actNo)
-		{
-			var delete1 = "delete from t_filestore where id in (select id from t_fileinfo where act_no=?)";
-			var delete2 = "delete from t_fileinfo where act_no=?";
-
-			using (var cmd = new SQLiteCommand(conn))
+			catch (TargetInvocationException e)
 			{
-				cmd.Parameters.Add(new SQLiteParameter() { Value = actNo });
-				cmd.CommandText = delete1;
-				cmd.ExecuteNonQuery();
-				cmd.CommandText = delete2;
-				cmd.ExecuteNonQuery();
+				replaceList.RemoveAt(replaceList.Count - 1);
+				File.Delete(entityPath);
+				throw e.InnerException;
 			}
-		}
-
-		public FileInfo Select(ReplacedFile filekey)
-		{
-			return this.Select(filekey.Id);
-		}
-
-		public FileInfo Select(int id, FileInfo outTo = null)
-		{
-			using (var cmd = new SQLiteCommand(conn))
+			catch (Exception e)
 			{
-				cmd.CommandText = "select id as bin, length(bin) as bin_length from t_filestore where id = ?";
-				cmd.Parameters.Add(new SQLiteParameter() { Value = id });
-				using (var reader = cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo))
-				{
-					if (reader.Read())
-					{
-
-						var output = outTo ?? new FileInfo(Path.GetTempFileName());
-
-						int blobLength = reader.GetInt32(1);
-						int blobOffest = 0;
-
-						byte[] buffer = new byte[BUFFER_SIZE];
-
-						using (var blob = reader.GetBlob(0, false))
-						using (var writer = output.OpenWrite())
-						{
-							while (blobOffest < blobLength)
-							{
-								int read = Math.Min(buffer.Length, blobLength - blobOffest);
-								blob.Read(buffer, read, blobOffest);
-								writer.Write(buffer, 0, read);
-
-								blobOffest += read;
-							}
-						}
-						return output;
-
-					}
-					else
-					{
-						return null;
-					}
-				}
+				replaceList.RemoveAt(replaceList.Count - 1);
+				File.Delete(entityPath);
+				throw e;
 			}
+
 		}
 
-		public List<ReplacedFile> SelectFileInfos(int actNo)
+		public List<ReplacedFile> SelectFileInfos()
 		{
-			using (var context = new DataContext(conn))
-			{
-				var table = context.GetTable<ReplacedFile>();
-				return table.Where(s => s.ActNo == actNo).ToList();
-			}
+			return new List<ReplacedFile>(replaceList);
+		}
+
+		public FileInfo Select(ReplacedFile id, FileInfo outTo = null)
+		{
+			var output = outTo ?? new FileInfo(id.FilePath);
+
+			var actDir = Path.Combine(root.FullName, id.ActNo.ToString());
+			var targetFile = Path.Combine(actDir, id.Id.ToString());
+			File.Delete(output.FullName);
+			File.Copy(targetFile, output.FullName);
+
+			return output;
 		}
 	}
 
-	[Table(Name = "t_fileinfo")]
 	class ReplacedFile
 	{
-		[Column(Name = "id", CanBeNull = false, DbType = "INT", IsPrimaryKey = true)]
 		public int Id { set; get; }
 
-		[Column(Name = "act_no", CanBeNull = false, DbType = "INT")]
 		public int ActNo { set; get; }
 
-		[Column(Name = "filepath", CanBeNull = false, DbType = "TEXT")]
 		public string FilePath { set; get; }
 
-		[Column(Name = "guarantee_hash", CanBeNull = false, DbType = "TEXT")]
 		public string ReplacedFileHash { set; get; }
 
+		public static ReplacedFile ValueOf(String text)
+		{
+			int swt = 0;
+			int id = -1;
+			int actNo = -1;
+			string filepath = null;
+			string hash = null;
+
+			var buffer = new StringBuilder();
+			var escape = false;
+			foreach (var ch in text)
+			{
+				if (escape)
+				{
+					escape = false;
+					buffer.Append(ch);
+				}
+				else if (ch == '\\')
+				{
+					escape = true;
+				}
+				else if (ch == ',')
+				{
+					switch (swt++)
+					{
+						case 0:
+							id = Int32.Parse(buffer.ToString());
+							break;
+						case 1:
+							actNo = Int32.Parse(buffer.ToString());
+							break;
+						case 2:
+							filepath = buffer.ToString();
+							break;
+						case 3:
+							hash = buffer.ToString();
+							break;
+						default:
+							throw new InvalidDataException();
+					}
+					buffer.Clear();
+				}
+				else
+				{
+					buffer.Append(ch);
+				}
+			}
+
+			if (buffer.Length > 0)
+			{
+				switch (swt++)
+				{
+					case 0:
+						id = Int32.Parse(buffer.ToString());
+						break;
+					case 1:
+						actNo = Int32.Parse(buffer.ToString());
+						break;
+					case 2:
+						filepath = buffer.ToString();
+						break;
+					case 3:
+						hash = buffer.ToString();
+						break;
+					default:
+						throw new InvalidDataException();
+				}
+			}
+
+			if (hash == null)
+			{
+				throw new InvalidDataException();
+			}
+
+			return new ReplacedFile()
+			{
+				Id = id,
+				ActNo = actNo,
+				FilePath = filepath,
+				ReplacedFileHash = hash
+			};
+		}
+
+		public override string ToString()
+		{
+			return
+				Id + "," +
+				ActNo + "," +
+				FilePath.Replace("\\", "\\\\").Replace(",", "\\,") + "," +
+				ReplacedFileHash.Replace("\\", "\\\\").Replace(",", "\\,");
+		}
 	}
 }

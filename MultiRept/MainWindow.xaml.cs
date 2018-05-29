@@ -1,20 +1,10 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-using System.Security.Cryptography;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
 using FileInfo = System.IO.FileInfo;
@@ -22,7 +12,7 @@ using EncodeDetector;
 
 namespace MultiRept
 {
-
+	delegate void FileMove(string src, string dist);
 	delegate void DialogAlert(string message);
 	delegate MessageBoxResult DialogConfirm(string message);
 
@@ -31,10 +21,8 @@ namespace MultiRept
 	/// </summary>
 	public partial class MainWindow : Window
 	{
-		private int actNo = 0;
 		private ResultWindow logWindow;
-
-		private DB db = new DB();
+		private FileStore db = new FileStore();
 
 		public MainWindow()
 		{
@@ -111,8 +99,6 @@ namespace MultiRept
 			var filePatterns = (from ptn in filePattern.Split(',')
 									  select new Regex("^" + Util.Wild2Regex(ptn) + "$")).ToArray();
 
-			actNo++;
-
 			/*置換処理開始*/
 			ReplaceButton.IsEnabled = false;
 			CancelButton.IsEnabled = false;
@@ -125,13 +111,14 @@ namespace MultiRept
 			logWindow.FilePattern = filePattern;
 
 			// 置換処理
+			db.NewAct();
 			var progress = new Progress<int>(SetProgress);
 			await Task.Run(() => DoReplace(directoryPath, filePatterns, encoding, keywords, progress));
 
 			/*置換処理完了*/
 			MessageBox.Show(this, "置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
 			ReplaceButton.IsEnabled = true;
-			CancelButton.IsEnabled = actNo > 0;
+			CancelButton.IsEnabled = true;
 
 			logWindow.Show();
 		}
@@ -320,21 +307,18 @@ namespace MultiRept
 
 				if (replaceOcc)
 				{
-					using (var transaction = db.BeginTransaction())
-					{
-						// 置換前のファイルの退避(DBへ)
-						ReplacedFile key = new ReplacedFile();
-						key.ActNo = actNo;
-						key.FilePath = filepath;
-						key.ReplacedFileHash = Util.MakeHash(output);
-						db.Insert(key, new FileInfo(filepath));
-
-						// ファイル置換
-						File.Delete(filepath);
-						File.Move(output, filepath);
-
-						transaction.Commit();
-					}
+					// 置換前のファイルの退避(DBへ)
+					db.Insert(
+						filepath,
+						Util.MakeHash(output),
+						(FileMove)delegate (string src, string dist)
+						{
+							// ファイル置換
+							File.Delete(dist);
+							File.Move(src, dist);
+						},
+						output,
+						filepath);
 				}
 			}
 		}
@@ -397,9 +381,8 @@ namespace MultiRept
 			/*置換処理完了*/
 			if (result)
 			{
-				db.DeleteActNo(actNo);
+				db.DeleteAct();
 				MessageBox.Show(this, "置換処理を取り消しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
-				actNo--;
 			}
 			else
 			{
@@ -407,13 +390,13 @@ namespace MultiRept
 			}
 
 			ReplaceButton.IsEnabled = true;
-			CancelButton.IsEnabled = actNo > 0;
+			CancelButton.IsEnabled = db.HasStore;
 		}
 
 		private bool DoCancel(IProgress<int> informer)
 		{
 
-			var fileinfos = db.SelectFileInfos(actNo);
+			var fileinfos = db.SelectFileInfos();
 
 			long fileinfoLen = fileinfos.Count * 2;
 			long fileinfoIdx = fileinfoLen;
@@ -518,7 +501,7 @@ namespace MultiRept
 				{
 					try
 					{
-						db.Select(fileinfo.Id, new FileInfo(fileinfo.FilePath));
+						db.Select(fileinfo);
 						break;
 					}
 					catch (IOException)

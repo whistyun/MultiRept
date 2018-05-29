@@ -45,7 +45,7 @@
             <Button 
 				Grid.Row="0" Grid.Column="2"
                 VerticalAlignment="Stretch"
-				Margin="0,0,0,5"
+				Margin="0,0,0,5"  Padding="4,0,4,0"
                 Content="参照" Click="Button_Click"
                 />
 
@@ -113,8 +113,8 @@
                 <StackPanel Orientation="Horizontal"
 					DockPanel.Dock="Top">
 
-                    <Button Content="追加" Click="AddButton_Click" Margin="0,0,10,0"/>
-                    <Button Content="削除" Click="RemoveButton_Click" />
+                    <Button Content="追加" Click="AddButton_Click" Margin="0,0,10,0" Padding="4,2,4,2"/>
+                    <Button Content="削除" Click="RemoveButton_Click"  Padding="4,2,4,2"/>
                 </StackPanel>
 
                 <ScrollViewer >
