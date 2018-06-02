@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MultiRept
 {
-	class Util
+	public class Util
 	{
 		/// <summary>
 		/// ワイルドカードでの入力を正規表現の形式に変換します。
@@ -75,9 +75,9 @@ namespace MultiRept
 	}
 
 
-	static class StreamReaderEnhance
+	public static class StreamReaderEnhance
 	{
-		public static string ReadLine(this StreamReader reader, out string lineBreak)
+		public static string ReadLine(this TextReader reader, out string lineBreak)
 		{
 			StringBuilder builder = new StringBuilder();
 			int cd;

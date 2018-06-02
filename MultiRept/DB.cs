@@ -13,7 +13,7 @@ using System.Reflection;
 
 namespace MultiRept
 {
-	class FileStore : IDisposable
+	public class FileStore : IDisposable
 	{
 		DirectoryInfo root;
 
@@ -181,7 +181,7 @@ namespace MultiRept
 		}
 	}
 
-	class ReplacedFile
+	public class ReplacedFile
 	{
 		public int Id { set; get; }
 

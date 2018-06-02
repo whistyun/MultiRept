@@ -160,8 +160,11 @@ namespace MultiRept
 						// エスケープか、置換後テキストへの特殊な変換
 						char c2 = CharAt(replaceTo, i + 1);
 						char c3 = CharAt(replaceTo, i + 2);
+						char c4 = CharAt(replaceTo, i + 3);
 
-						if (c3 == '$' && Array.IndexOf(new[] { 'l', 'L', 'u', 'U' }, c2) >= 0)
+						if (Array.IndexOf(new[] { 'l', 'L', 'u', 'U' }, c2) >= 0
+							&& c3 == '$'
+							&& (c4 == '{' || ('0' <= c4 && c4 <= '9')))
 						{
 							// 置換後テキストへの特殊な変換
 
