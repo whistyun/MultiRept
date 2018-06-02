@@ -99,6 +99,8 @@ namespace MultiRept
 			var filePatterns = (from ptn in filePattern.Split(',')
 									  select new Regex("^" + Util.Wild2Regex(ptn) + "$")).ToArray();
 
+			var ignoreHide = IgnoreHideFile.IsChecked.Value;
+
 			/*置換処理開始*/
 			ReplaceButton.IsEnabled = false;
 			CancelButton.IsEnabled = false;
@@ -113,7 +115,7 @@ namespace MultiRept
 			// 置換処理
 			db.NewAct();
 			var progress = new Progress<int>(SetProgress);
-			await Task.Run(() => DoReplace(directoryPath, filePatterns, encoding, keywords, progress));
+			await Task.Run(() => DoReplace(directoryPath, filePatterns, ignoreHide, encoding, keywords, progress));
 
 			/*置換処理完了*/
 			MessageBox.Show(this, "置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -129,10 +131,11 @@ namespace MultiRept
 		/// </summary>
 		/// <param name="directoryPath">処理を行う対象のディレクトリ</param>
 		/// <param name="filePatterns">処理対象のファイル名パターン</param>
+		/// <param name="ignoreHide">隠しフォルダ/ファイルは除外する</param>
 		/// <param name="encoding">ファイルを読み込む際のエンコード</param>
 		/// <param name="keywords">置換キーワード一覧</param>
 		/// <param name="informer">進捗状況通知先(0～Int32.MaxValue)</param>
-		private void DoReplace(string directoryPath, Regex[] filePatterns, Encoding encoding, List<ReplaceParameter> keywords, IProgress<int> informer)
+		private void DoReplace(string directoryPath, Regex[] filePatterns, bool ignoreHide, Encoding encoding, List<ReplaceParameter> keywords, IProgress<int> informer)
 		{
 
 			var targets = new List<string>();
@@ -144,6 +147,12 @@ namespace MultiRept
 				var directory = directories.Pop();
 				foreach (var newFile in Directory.GetFiles(directory))
 				{
+					if (ignoreHide)
+					{
+						var fileinfo = new FileInfo(newFile);
+						if (fileinfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
+					}
+
 					foreach (var filePtnRegex in filePatterns)
 					{
 						if (filePtnRegex.IsMatch(newFile))
@@ -158,6 +167,12 @@ namespace MultiRept
 				// ディレクトリを取得し、スタックに詰める
 				foreach (var newDirectory in Directory.GetDirectories(directory))
 				{
+					if (ignoreHide)
+					{
+						var dirInfo = new DirectoryInfo(newDirectory);
+						if (dirInfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
+					}
+
 					directories.Push(newDirectory);
 				}
 			}

@@ -10,6 +10,7 @@
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="auto"/>
+                <RowDefinition Height="auto"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="auto"/>
@@ -32,7 +33,7 @@
                 />
 
             <Label
-				Grid.Row="2" Grid.Column="0"
+				Grid.Row="3" Grid.Column="0"
 				Content="文字コード" 
 				HorizontalAlignment="Center"
 				Margin="0,0,5,5"                
@@ -64,6 +65,17 @@
 
             <StackPanel 
 				    Grid.Row="2" Grid.Column="1"
+                    Grid.ColumnSpan="2"                
+                    Orientation="Horizontal">
+
+                <CheckBox x:Name="IgnoreHideFile"
+                    Content="隠しフォルダ/ファイルは処理しない"
+                    IsChecked="True" />
+
+            </StackPanel>
+
+            <StackPanel 
+				    Grid.Row="3" Grid.Column="1"
                     Grid.ColumnSpan="2"                
                     Orientation="Horizontal">
                 <StackPanel.Resources>
