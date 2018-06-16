@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Text.RegularExpressions;
 
 
 namespace MultiRept
@@ -59,6 +60,45 @@ namespace MultiRept
 				var val = modeRegexRadioButton.IsChecked;
 				return val.HasValue ? val.Value : false;
 			}
+		}
+
+		public bool CheckError()
+		{
+			replaceFromTextBox.HasError = false;
+			replaceToTextBox.HasError = false;
+
+			// チェック：キーワード未入力チェック
+			if (ReplaceFrom == "")
+			{
+				replaceFromTextBox.ErrorMessage = "未入力です";
+			}
+			// チェック：正規表現の場合は、正当な正規表現かチェック
+			else if (IsRegexMode)
+			{
+				try
+				{
+					var regex = new Regex(ReplaceFrom);
+				}
+				catch (Exception)
+				{
+					replaceFromTextBox.ErrorMessage = "不正な正規表現です";
+				}
+			}
+
+			// チェック：正規表現の場合は、置換後テキストが成形可能な文字か確認
+			if (IsRegexMode)
+			{
+				try
+				{
+					var res = ExtendReplaceTo.Parse(ReplaceTo);
+				}
+				catch (Exception)
+				{
+					replaceToTextBox.ErrorMessage = "置換後テキストが不正です。\n※正規表現が有効の場合、成型文字が使用できます。";
+				}
+			}
+
+			return replaceFromTextBox.HasError | replaceToTextBox.HasError;
 		}
 
 		public ReplaceParameter GetParameter()

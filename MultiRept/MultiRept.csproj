@@ -61,14 +61,30 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Diff\DupleViewWindow.xaml.cs">
+      <DependentUpon>DupleViewWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Encode\ByteExtends.cs" />
     <Compile Include="Encode\CodeDetector.cs" />
     <Compile Include="Encode\CodePointJuror.cs" />
     <Compile Include="Encode\EncodeModel.cs" />
+
+    <Compile Include="ErrorableTextBox.xaml.cs">
+      <DependentUpon>ErrorableTextBox.xaml</DependentUpon>
+      <SubType>Code</SubType>
+	</Compile>
+
     <Compile Include="ResultWindow.xaml.cs">
       <DependentUpon>ResultWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Util.cs" />
+    <Page Include="Diff\DupleViewWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ErrorableTextBox.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -127,6 +143,10 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="icon.ico" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

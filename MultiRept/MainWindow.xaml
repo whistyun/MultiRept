@@ -4,6 +4,7 @@
         xmlns:local="clr-namespace:MultiRept" x:Class="MultiRept.MainWindow"
         Title="置換ツール" Height="585.296" Width="464.449"
         Background="#FFEEEEEE" Closed="Window_Closed">
+    
     <DockPanel LastChildFill="True" Margin="4" >
         <Grid DockPanel.Dock="Top">
             <Grid.RowDefinitions>
@@ -19,41 +20,41 @@
             </Grid.ColumnDefinitions>
 
             <Label 
-				Grid.Row="0" Grid.Column="0"
-				Content="フォルダ" 
-				HorizontalAlignment="Center"
-				Margin="0,0,5,5"
+                Grid.Row="0" Grid.Column="0"
+                Content="フォルダ" 
+                HorizontalAlignment="Center"
+                Margin="0,0,5,5"
                 />
 
             <Label 
-				Grid.Row="1" Grid.Column="0"
-				Content="ファイル(*.*)" 
-				HorizontalAlignment="Center"
-				Margin="0,0,5,5"
+                Grid.Row="1" Grid.Column="0"
+                Content="ファイル(*.*)" 
+                HorizontalAlignment="Center"
+                Margin="0,0,5,5"
                 />
 
             <Label
-				Grid.Row="3" Grid.Column="0"
-				Content="文字コード" 
-				HorizontalAlignment="Center"
-				Margin="0,0,5,5"                
+                Grid.Row="3" Grid.Column="0"
+                Content="文字コード" 
+                HorizontalAlignment="Center"
+                Margin="0,0,5,5"                
                 />
 
-            <TextBox x:Name="directoryTextBox"
-				Grid.Row="0" Grid.Column="1"
-				Margin="0,0,5,5"
+            <local:ErrorableTextBox x:Name="directoryTextBox"
+                Grid.Row="0" Grid.Column="1"
+                Margin="0,0,5,5"
                 />
             <Button 
-				Grid.Row="0" Grid.Column="2"
+                Grid.Row="0" Grid.Column="2"
                 VerticalAlignment="Stretch"
-				Margin="0,0,0,5"  Padding="4,0,4,0"
+                Margin="0,0,0,5"  Padding="4,0,4,0"
                 Content="参照" Click="Button_Click"
                 />
 
-            <TextBox x:Name="filePatternTextBox"
-				    Grid.Row="1" Grid.Column="1"
+            <local:ErrorableTextBox x:Name="filePatternTextBox"
+                    Grid.Row="1" Grid.Column="1"
                     Grid.ColumnSpan="2"
-				    Margin="0,0,0,5" Text="*.*" >
+                    Margin="0,0,0,5" Text="*.*" >
                 <TextBox.ToolTip>
                     <TextBlock>
                         処理対象のファイル名パターンを設定します。
@@ -61,10 +62,10 @@
                         "," 区切りで複数設定することができます。
                     </TextBlock>
                 </TextBox.ToolTip>
-            </TextBox>
+            </local:ErrorableTextBox>
 
             <StackPanel 
-				    Grid.Row="2" Grid.Column="1"
+                    Grid.Row="2" Grid.Column="1"
                     Grid.ColumnSpan="2"                
                     Orientation="Horizontal">
 
@@ -75,7 +76,7 @@
             </StackPanel>
 
             <StackPanel 
-				    Grid.Row="3" Grid.Column="1"
+                    Grid.Row="3" Grid.Column="1"
                     Grid.ColumnSpan="2"                
                     Orientation="Horizontal">
                 <StackPanel.Resources>
@@ -117,13 +118,13 @@
         </DockPanel>
 
         <GroupBox 
-			Header="置換キーワード" 
-			HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderBrush="Black">
+            Header="置換キーワード" 
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderBrush="Black">
 
             <DockPanel LastChildFill="True">
 
                 <StackPanel Orientation="Horizontal"
-					DockPanel.Dock="Top">
+                    DockPanel.Dock="Top">
 
                     <Button Content="追加" Click="AddButton_Click" Margin="0,0,10,0" Padding="4,2,4,2"/>
                     <Button Content="削除" Click="RemoveButton_Click"  Padding="4,2,4,2"/>

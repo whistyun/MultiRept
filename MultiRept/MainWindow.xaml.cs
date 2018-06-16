@@ -53,35 +53,57 @@ namespace MultiRept
 			var filePattern = filePatternTextBox.Text;
 			var keywordComponents = replaceKeyList.Children.OfType<OneTask>().ToList();
 
+			string errorMessage = null;
+
 			// チェック：ディレクトリは未入力でないか？
 			if (directoryPath == "")
 			{
-				MessageBox.Show(this, "フォルダを選択してください", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-				directoryTextBox.Focus();
-				return;
+				string message = "フォルダを選択してください";
+				errorMessage = errorMessage ?? message;
+
+				directoryTextBox.ErrorMessage = message;
+			}
+			else
+			{
+				directoryTextBox.HasError = false;
 			}
 
 			// チェック：ディレクトリは存在するか？
 			if (!Directory.Exists(directoryPath))
 			{
-				MessageBox.Show(this, "指定されたフォルダは存在しません", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-				directoryTextBox.Focus();
-				return;
+				string message = "指定されたフォルダは存在しません";
+				errorMessage = errorMessage ?? message;
+
+				directoryTextBox.ErrorMessage = message;
+			}
+			else
+			{
+				directoryTextBox.HasError = false;
 			}
 
 			// チェック：ファイルパターンが(わざわざ)未入力にされていないか
 			if (filePattern.Trim() == "")
 			{
-				MessageBox.Show(this, "ファイルパターンが未入力です", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-				filePatternTextBox.Focus();
-				return;
+				string message = "ファイルパターンが未入力です";
+				errorMessage = errorMessage ?? message;
+
+				filePatternTextBox.ErrorMessage = message;
+			}
+			else
+			{
+				filePatternTextBox.HasError = false;
 			}
 
 			// チェック：置換キーワードが未入力でないか
-			var emptyKeywordsExists = keywordComponents.Where(elem => elem.ReplaceFrom == "").Count() != 0;
+			var emptyKeywordsExists = keywordComponents.Where(elem => elem.CheckError()).Count() != 0;
 			if (emptyKeywordsExists)
 			{
-				MessageBox.Show(this, "置換キーワードに未入力なものが含まれます", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+				errorMessage = errorMessage ?? "置換キーワードに不正な入力があります";
+			}
+
+			if (errorMessage != null)
+			{
+				MessageBox.Show(this, errorMessage, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
 				return;
 			}
 

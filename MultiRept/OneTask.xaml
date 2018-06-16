@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:MultiRept" 
              mc:Ignorable="d" >
+
     <Border BorderBrush="#999" BorderThickness="0,0,0,2" Background="#DDD">
         <Grid Margin="2">
             <Grid.RowDefinitions>
@@ -35,11 +37,11 @@
                 Content="置換方法"
                 Margin="0,0,5,0"/>
 
-            <TextBox x:Name="replaceFromTextBox"
+            <local:ErrorableTextBox x:Name="replaceFromTextBox"
                 Grid.Row="0" Grid.Column="1" 
                 Margin="0,0,0,5"/>
 
-            <TextBox x:Name="replaceToTextBox"
+            <local:ErrorableTextBox x:Name="replaceToTextBox"
                 Grid.Row="1" Grid.Column="1" 
                 Margin="0,0,0,5"/>
 
