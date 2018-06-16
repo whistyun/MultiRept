@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using IOPath = System.IO.Path;
 using FileInfo = System.IO.FileInfo;
 using EncodeDetector;
+using MultiRept.Gui;
 
 namespace MultiRept
 {
@@ -16,9 +17,6 @@ namespace MultiRept
 	delegate void DialogAlert(string message);
 	delegate MessageBoxResult DialogConfirm(string message);
 
-	/// <summary>
-	/// MainWindow.xaml の相互作用ロジック
-	/// </summary>
 	public partial class MainWindow : Window
 	{
 		private ResultWindow logWindow;

@@ -15,7 +15,7 @@ using System.Windows.Shapes;
 using System.Text.RegularExpressions;
 
 
-namespace MultiRept
+namespace MultiRept.Gui
 {
 	/// <summary>
 	/// OneTask.xaml の相互作用ロジック

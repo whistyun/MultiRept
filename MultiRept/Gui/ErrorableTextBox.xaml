@@ -1,6 +1,6 @@
 ﻿<TextBox xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MultiRept.ErrorableTextBox"
+        x:Class="MultiRept.Gui.ErrorableTextBox"
         xmlns:local="clr-namespace:MultiRept">
 
     <TextBox.Style>

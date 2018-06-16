@@ -68,20 +68,18 @@
     <Compile Include="Encode\CodeDetector.cs" />
     <Compile Include="Encode\CodePointJuror.cs" />
     <Compile Include="Encode\EncodeModel.cs" />
-
-    <Compile Include="ErrorableTextBox.xaml.cs">
+    <Compile Include="Gui\ErrorableTextBox.xaml.cs">
       <DependentUpon>ErrorableTextBox.xaml</DependentUpon>
       <SubType>Code</SubType>
-	</Compile>
-
-    <Compile Include="ResultWindow.xaml.cs">
+    </Compile>
+    <Compile Include="Gui\ResultWindow.xaml.cs">
       <DependentUpon>ResultWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Util.cs" />
     <Page Include="Diff\DupleViewWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="ErrorableTextBox.xaml">
+    <Page Include="Gui\ErrorableTextBox.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -99,17 +97,17 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="OneTask.xaml">
+    <Page Include="Gui\OneTask.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="ResultWindow.xaml">
+    <Page Include="Gui\ResultWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="OneTask.xaml.cs">
+    <Compile Include="Gui\OneTask.xaml.cs">
       <DependentUpon>OneTask.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs">

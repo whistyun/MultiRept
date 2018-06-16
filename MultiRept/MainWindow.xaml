@@ -1,7 +1,7 @@
 ﻿<Window
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:MultiRept" x:Class="MultiRept.MainWindow"
+        xmlns:local="clr-namespace:MultiRept.Gui" x:Class="MultiRept.MainWindow"
         Title="置換ツール" Height="585.296" Width="464.449"
         Background="#FFEEEEEE" Closed="Window_Closed">
     
