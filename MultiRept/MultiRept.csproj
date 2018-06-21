@@ -75,6 +75,7 @@
     <Compile Include="Gui\ResultWindow.xaml.cs">
       <DependentUpon>ResultWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Logic.cs" />
     <Compile Include="Util.cs" />
     <Page Include="Diff\DupleViewWindow.xaml">
       <Generator>MSBuild:Compile</Generator>

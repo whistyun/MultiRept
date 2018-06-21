@@ -13,13 +13,11 @@ using MultiRept.Gui;
 
 namespace MultiRept
 {
-	delegate void FileMove(string src, string dist);
 	delegate void DialogAlert(string message);
 	delegate MessageBoxResult DialogConfirm(string message);
 
 	public partial class MainWindow : Window
 	{
-		private ResultWindow logWindow;
 		private FileStore db = new FileStore();
 
 		public MainWindow()
@@ -41,18 +39,16 @@ namespace MultiRept
 		}
 
 		/// <summary>
-		/// 置換実施ボタン押下時の処理
+		/// 置換実施ボタンのチェック処理
 		/// </summary>
-		/// <param name="sender"></param>
-		/// <param name="e"></param>
-		private async void ReplaceButton_Click(object sender, RoutedEventArgs e)
+		/// <returns>true:チェックエラー無し / false:チェックエラー有り</returns>
+		private bool ValidateReplaceButton()
 		{
-			var directoryPath = directoryTextBox.Text;
-			var filePattern = filePatternTextBox.Text;
-			var keywordComponents = replaceKeyList.Children.OfType<OneTask>().ToList();
-
 			string errorMessage = null;
+			directoryTextBox.HasError = false;
+			filePatternTextBox.HasError = false;
 
+			var directoryPath = directoryTextBox.Text;
 			// チェック：ディレクトリは未入力でないか？
 			if (directoryPath == "")
 			{
@@ -61,24 +57,16 @@ namespace MultiRept
 
 				directoryTextBox.ErrorMessage = message;
 			}
-			else
-			{
-				directoryTextBox.HasError = false;
-			}
-
 			// チェック：ディレクトリは存在するか？
-			if (!Directory.Exists(directoryPath))
+			else if (!Directory.Exists(directoryPath))
 			{
 				string message = "指定されたフォルダは存在しません";
 				errorMessage = errorMessage ?? message;
 
 				directoryTextBox.ErrorMessage = message;
 			}
-			else
-			{
-				directoryTextBox.HasError = false;
-			}
 
+			var filePattern = filePatternTextBox.Text;
 			// チェック：ファイルパターンが(わざわざ)未入力にされていないか
 			if (filePattern.Trim() == "")
 			{
@@ -87,311 +75,82 @@ namespace MultiRept
 
 				filePatternTextBox.ErrorMessage = message;
 			}
-			else
-			{
-				filePatternTextBox.HasError = false;
-			}
 
-			// チェック：置換キーワードが未入力でないか
+			var keywordComponents = replaceKeyList.Children.OfType<OneTask>().ToList();
 			var emptyKeywordsExists = keywordComponents.Where(elem => elem.CheckError()).Count() != 0;
+			// チェック：置換キーワードが未入力でないか
 			if (emptyKeywordsExists)
 			{
 				errorMessage = errorMessage ?? "置換キーワードに不正な入力があります";
 			}
 
+
+			// チェックエラーがある場合はメッセージを表示して終了
 			if (errorMessage != null)
 			{
 				MessageBox.Show(this, errorMessage, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-				return;
+				return false;
 			}
-
-			// 置換キーワードパラメタ
-			var keywords = (from c in keywordComponents select c.GetParameter()).ToList();
-
-			// 文字コード設定
-			var encoding =
-				 Utf8RadioButton.IsChecked.Value ? new UTF8Encoding(false) :
-				 EucJpRadioButton.IsChecked.Value ? Encoding.GetEncoding(51932) :
-				 SjisRadioButton.IsChecked.Value ? Encoding.GetEncoding(932) :
-				 null;
-
-			// ファイルパターンを(,)で区切って正規表現のパターンに変換
-			var filePatterns = (from ptn in filePattern.Split(',')
-									  select new Regex("^" + Util.Wild2Regex(ptn) + "$")).ToArray();
-
-			var ignoreHide = IgnoreHideFile.IsChecked.Value;
-
-			/*置換処理開始*/
-			ReplaceButton.IsEnabled = false;
-			CancelButton.IsEnabled = false;
-			Progress.Maximum = Int32.MaxValue;
-			Progress.Minimum = 0;
-			Progress.Value = 0;
-
-			logWindow = new ResultWindow();
-			logWindow.Folder = directoryPath;
-			logWindow.FilePattern = filePattern;
-
-			// 置換処理
-			db.NewAct();
-			var progress = new Progress<int>(SetProgress);
-			await Task.Run(() => DoReplace(directoryPath, filePatterns, ignoreHide, encoding, keywords, progress));
-
-			/*置換処理完了*/
-			MessageBox.Show(this, "置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
-			ReplaceButton.IsEnabled = true;
-			CancelButton.IsEnabled = true;
-
-			logWindow.Show();
-		}
-
-		/// <summary>
-		/// 指定のディレクトリを再帰的に検索し、
-		/// 置換処理を行います。
-		/// </summary>
-		/// <param name="directoryPath">処理を行う対象のディレクトリ</param>
-		/// <param name="filePatterns">処理対象のファイル名パターン</param>
-		/// <param name="ignoreHide">隠しフォルダ/ファイルは除外する</param>
-		/// <param name="encoding">ファイルを読み込む際のエンコード</param>
-		/// <param name="keywords">置換キーワード一覧</param>
-		/// <param name="informer">進捗状況通知先(0～Int32.MaxValue)</param>
-		private void DoReplace(string directoryPath, Regex[] filePatterns, bool ignoreHide, Encoding encoding, List<ReplaceParameter> keywords, IProgress<int> informer)
-		{
-
-			var targets = new List<string>();
-
-			var directories = new Stack<String>();
-			directories.Push(directoryPath);
-			while (directories.Count > 0)
+			else
 			{
-				var directory = directories.Pop();
-				foreach (var newFile in Directory.GetFiles(directory))
-				{
-					if (ignoreHide)
-					{
-						var fileinfo = new FileInfo(newFile);
-						if (fileinfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-					}
-
-					foreach (var filePtnRegex in filePatterns)
-					{
-						if (filePtnRegex.IsMatch(newFile))
-						{
-							//処理対象
-							targets.Add(newFile);
-							break;
-						}
-					}
-				}
-
-				// ディレクトリを取得し、スタックに詰める
-				foreach (var newDirectory in Directory.GetDirectories(directory))
-				{
-					if (ignoreHide)
-					{
-						var dirInfo = new DirectoryInfo(newDirectory);
-						if (dirInfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
-					}
-
-					directories.Push(newDirectory);
-				}
-			}
-
-			long index = 1;
-			long total = targets.Count;
-
-			if (total == 0) { return; }
-
-			foreach (var target in targets)
-			{
-				try
-				{
-					StartLog();
-					TryReplace(target, encoding, keywords);
-				}
-				catch (IOException ioe)
-				{
-					OutErrLog(target, ioe.Message);
-				}
-				informer.Report((int)(Int32.MaxValue * index / total));
-				++index;
+				return true;
 			}
 		}
 
 		/// <summary>
-		/// 置換処理
+		/// 置換実施ボタン押下時の処理
 		/// </summary>
-		/// <param name="filepath"></param>
-		/// <param name="keyword"></param>
-		private void TryReplace(string filepath, Encoding encoding, List<ReplaceParameter> keywords)
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
+		private async void ReplaceButton_Click(object sender, RoutedEventArgs e)
 		{
-
-			var replaceOcc = false;
-			// 出力先
-			var output = IOPath.GetTempFileName();
-
-			if (encoding == null)
+			//チェック処理を通過する場合のみ処理する
+			if (ValidateReplaceButton())
 			{
-				var detector = new CodeDetector();
-				encoding = detector.Check(new FileInfo(filepath));
-			}
+				/*置換処理開始*/
+				ReplaceButton.IsEnabled = false;
+				CancelButton.IsEnabled = false;
+				Progress.Maximum = Int32.MaxValue;
+				Progress.Minimum = 0;
+				Progress.Value = 0;
 
-			if (encoding != null)
-			{
-				using (var reader = new StreamReader(filepath, encoding, false, 1024 * 20))
-				using (var writer = new StreamWriter(output, false, encoding, 1024 * 20))
+				//　画面項目からパラメタ取得
+				var param = new ReplaceLogicParam()
 				{
+					RootDir = directoryTextBox.Text,
+					FilePattern = filePatternTextBox.Text,
+					IgnoreHide = IgnoreHideFile.IsChecked.Value,
 
-					int lineCnt = 0;
-					string lnCd;
-					string line;
-					StringBuilder newLine = new StringBuilder();
-					while ((line = reader.ReadLine(out lnCd)) != null)
-					{
-						lineCnt++;
-						bool findMatch = false;
-						int startAt = 0;
+					Encoding = Utf8RadioButton.IsChecked.Value ? new UTF8Encoding(false) :
+									EucJpRadioButton.IsChecked.Value ? Encoding.GetEncoding(51932) :
+									SjisRadioButton.IsChecked.Value ? Encoding.GetEncoding(932) :
+									null,
 
-						do
-						{
-							//置換対象キーワードを含んでいるか？
-							var hitKeyAndMatch =
-								 // 全てのキーワードについて検索
-								 keywords.Select(keyword => Tuple.Create(
-									 keyword,
-									 keyword.ReplaceFromPattern.Matches(line, startAt)
-										.Cast<Match>().Where(m => m.Success && m.Length != 0)
-										.OrderBy(m => m.Index)
-										.FirstOrDefault()
-								 ))
-								 .Where(regres => regres.Item2 != null && regres.Item2.Success && regres.Item2.Length != 0)
-								 // 最初にヒットしたものを対象とする
-								 .OrderBy(regres => regres.Item2.Index)
-								 .FirstOrDefault();
+					Keywords = replaceKeyList.Children.OfType<OneTask>().ToList().Select(c => c.GetParameter()).ToList()
+				};
 
-							if (hitKeyAndMatch != null)
-							{
-								findMatch = true;
+				var logWindow = new ResultWindow();
+				logWindow.Folder = param.RootDir;
+				logWindow.FilePattern = param.FilePattern;
 
-								var hitKey = hitKeyAndMatch.Item1;
-								var match = hitKeyAndMatch.Item2;
+				// 置換処理
+				db.NewAct();
 
-								replaceOcc = true;
+				var logic = new ReplaceLogic(db);
+				logic.Begin += logWindow.Begin;
+				logic.Inform += logWindow.Inform;
+				logic.ErrorEnd += logWindow.EndError;
 
-								// ヒット位置より前の文字をそのままコピー
-								newLine.Append(line.Substring(0, match.Index));
+				var progress = new Progress<int>(SetProgress);
+				await Task.Run(() => logic.Do(param, progress));
 
-								// ヒット位置の文字を変更
-								foreach (ExtendReplaceTo rep in hitKey.ReplaceToPattern)
-								{
-									if (rep.Type == ReplaceToType.Plain)
-									{
-										newLine.Append(rep.Label);
-									}
-									else
-									{
-										Group group = rep.Type == ReplaceToType.GroupIndex ?
-											 match.Groups[rep.Index] :
-											 match.Groups[rep.Label];
+				/*置換処理完了*/
+				MessageBox.Show(this, "置換処理が完了しました", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
+				ReplaceButton.IsEnabled = true;
+				CancelButton.IsEnabled = true;
 
-										string value = group.Value;
-
-										switch (rep.Change)
-										{
-											case ChangeCase.LowerHead:
-												value = Char.ToLower(value[0]) + value.Substring(1);
-												break;
-											case ChangeCase.LowerAll:
-												value = value.ToLower();
-												break;
-											case ChangeCase.UpperHead:
-												value = Char.ToUpper(value[0]) + value.Substring(1);
-												break;
-											case ChangeCase.UpperAll:
-												value = value.ToUpper();
-												break;
-										}
-										newLine.Append(value);
-									}
-								}
-
-								// ヒット位置より後の文字をそのままコピー
-								startAt = newLine.Length;
-								newLine.Append(line.Substring(match.Index + match.Length));
-								line = newLine.ToString();
-								newLine.Clear();
-							}
-							else
-							{
-								// どのパターンもヒットしていないなら打ち止め、次の行へ
-								break;
-							}
-
-						} while (startAt < line.Length);
-
-						if (findMatch)
-						{
-							OutLog(filepath, lineCnt, encoding, line);
-						}
-
-
-						writer.Write(line);
-						if (lnCd != null) writer.Write(lnCd);
-					}
-				}
-
-				if (replaceOcc)
-				{
-					// 置換前のファイルの退避(DBへ)
-					db.Insert(
-						filepath,
-						Util.MakeHash(output),
-						(FileMove)delegate (string src, string dist)
-						{
-							// ファイル置換
-							File.Delete(dist);
-							File.Move(src, dist);
-						},
-						output,
-						filepath);
-				}
+				logWindow.Show();
 			}
-		}
-
-		private void StartLog()
-		{
-			logWindow.StartLog();
-		}
-
-		private void OutErrLog(string filePath, string message)
-		{
-			logWindow.AddError(filePath, message);
-		}
-		private void OutLog(string filePath, int lineNo, Encoding encoding, string contents)
-		{
-			string encodingName;
-			if (encoding is UTF8Encoding)
-			{
-				var utf8 = encoding as UTF8Encoding;
-				encodingName = utf8.GetPreamble().Length == 0 ? "UTF-8" : "UTF-8(BOM)";
-			}
-			else switch (encoding.CodePage)
-				{
-					case 20932:
-					case 51932:
-						encodingName = "EUC-JP";
-						break;
-					case 932:
-						encodingName = "SJIS";
-						break;
-					default:
-						encodingName = encoding.WebName;
-						break;
-
-				}
-
-
-			logWindow.Add(filePath, lineNo, encodingName, contents);
 		}
 
 		/// <summary>
@@ -410,8 +169,13 @@ namespace MultiRept
 			Progress.Value = Int32.MaxValue;
 
 			// 置換処理
+			var logic = new CancelLogic(db);
+			logic.Error += CancelButtonError;
+			logic.Confirm += CancelButtonConfirm;
+			logic.InformUserInterrupt += CancelButtonInform;
+
 			var progress = new Progress<int>(SetProgress);
-			var result = await Task.Run(() => DoCancel(progress));
+			var result = await Task.Run(() => logic.Do(progress));
 
 			/*置換処理完了*/
 			if (result)
@@ -428,136 +192,49 @@ namespace MultiRept
 			CancelButton.IsEnabled = db.HasStore;
 		}
 
-		private bool DoCancel(IProgress<int> informer)
+		private bool CancelButtonError(List<string> filepathList)
 		{
+			var msg =
+				"取消対象のファイルを別のプログラムが開いているため、\r\n" +
+				"取消操作が開始できません。\r\n";
 
-			var fileinfos = db.SelectFileInfos();
-
-			long fileinfoLen = fileinfos.Count * 2;
-			long fileinfoIdx = fileinfoLen;
-
-			if (fileinfoLen == 0) { return true; }
-
-			var userChangedfile = new List<string>();
-			var userLockedfile = new List<string>();
-
-			// ハッシュ値チェック
-			foreach (var fileinfo in fileinfos)
+			foreach (var filepath in filepathList)
 			{
-				--fileinfoIdx;
-
-				try
-				{
-					string nowHash = Util.MakeHash(fileinfo.FilePath);
-					string storeHash = fileinfo.ReplacedFileHash;
-					if (nowHash != storeHash)
-					{
-						userChangedfile.Add(fileinfo.FilePath);
-					}
-				}
-				catch (FileNotFoundException)
-				{
-					userChangedfile.Add(fileinfo.FilePath);
-				}
-				catch (IOException)
-				{
-					userLockedfile.Add(fileinfo.FilePath);
-				}
-
-
-
-				if (userLockedfile.Count != 0)
-				{
-					var lockedFiles = new StringBuilder();
-					for (int i = 0; i < Math.Min(10, userLockedfile.Count); ++i)
-					{
-						lockedFiles.Append("・").Append(userLockedfile[i]).Append("\r\n");
-					}
-					if (10 < userLockedfile.Count)
-					{
-						lockedFiles.Append("...");
-					}
-
-					fileinfoIdx = fileinfoLen;
-
-					Dispatcher.Invoke((DialogAlert)delegate (string msg)
-					{
-						MessageBox.Show(this, msg, "エラー", MessageBoxButton.OK);
-					},
-						"取消対象のファイルを別のプログラムが開いているため、\r\n" +
-						"取消操作が開始できません。\r\n" + lockedFiles.ToString()
-					);
-
-					return false;
-				}
-
-				if (userChangedfile.Count != 0)
-				{
-					var changedFiles = new StringBuilder();
-					for (int i = 0; i < Math.Min(10, userChangedfile.Count); ++i)
-					{
-						changedFiles.Append("・").Append(userChangedfile[i]).Append("\r\n");
-					}
-					if (10 < userChangedfile.Count)
-					{
-						changedFiles.Append("...");
-					}
-
-					fileinfoIdx = fileinfoLen / 2;
-
-					var result = (MessageBoxResult)Dispatcher.Invoke((DialogConfirm)delegate (string msg)
-					{
-						return MessageBox.Show(this, msg, "確認", MessageBoxButton.YesNo);
-					},
-						"置換後にファイルの変更が行われているようです。\r\n" +
-						"本当に取り消しますか？\r\n" + changedFiles.ToString()
-					);
-
-					if (result == MessageBoxResult.Yes)
-					{
-						break;
-					}
-					else
-					{
-						return false;
-					}
-				}
-
-				informer.Report((int)(Int32.MaxValue * fileinfoIdx / fileinfoLen));
+				msg += "・" + Path.GetFileName(filepath) + "\r\n";
 			}
 
-			informer.Report((int)(Int32.MaxValue * fileinfoIdx / fileinfoLen));
+			Action<string> showMessage = (m) => MessageBox.Show(this, m, "エラー", MessageBoxButton.OK);
+			Dispatcher.Invoke(showMessage, msg);
 
-			// 置換開始
-			foreach (var fileinfo in fileinfos)
+			return false;
+		}
+
+		private bool CancelButtonConfirm(List<string> filepathList)
+		{
+			var msg =
+				"置換後にファイルの変更が行われているようです。\r\n" +
+				"本当に取り消しますか？\r\n";
+
+			foreach (var filepath in filepathList)
 			{
-				--fileinfoIdx;
-				do
-				{
-					try
-					{
-						db.Select(fileinfo);
-						break;
-					}
-					catch (IOException)
-					{
-						Dispatcher.Invoke((DialogAlert)delegate (string msg)
-						{
-							MessageBox.Show(this, msg, "エラー", MessageBoxButton.OK);
-						},
-							"下記のファイルを変更できませんでした。\r\n" +
-							"他のプログラムで開いていいないか確認してださい。\r\n" +
-							"(OKボタンで変更を再開します)\r\n" +
-							fileinfo.FilePath
-						);
-					}
-				} while (true);
-
-
-				informer.Report((int)(Int32.MaxValue * fileinfoIdx / fileinfoLen));
+				msg += "・" + Path.GetFileName(filepath) + "\r\n";
 			}
 
-			return true;
+			Func<string, bool> showMessage = (m) => MessageBox.Show(this, m, "確認", MessageBoxButton.YesNo) == MessageBoxResult.Yes;
+
+			return (bool)Dispatcher.Invoke(showMessage, msg);
+		}
+
+		private void CancelButtonInform(string filepath)
+		{
+			var msg =
+				"下記のファイルを変更できませんでした。\r\n" +
+				"他のプログラムで開いていいないか確認してださい。\r\n" +
+				"(OKボタンで変更を再開します)\r\n" +
+				filepath;
+
+			Action<string> showMessage = (m) => MessageBox.Show(this, m, "エラー", MessageBoxButton.OK);
+			Dispatcher.Invoke(showMessage, msg);
 		}
 
 		/// <summary>

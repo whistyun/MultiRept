@@ -57,7 +57,12 @@ namespace MultiRept
 			}
 		}
 
-
+		/// <summary>
+		/// 指定されたフォルダを削除します。
+		/// フォルダ内にファイルやフォルダがある場合は、
+		/// それらを含めて削除します。
+		/// </summary>
+		/// <param name="path"></param>
 		public static void DeleteDir(string path)
 		{
 			foreach (var sub in Directory.GetFiles(path))
@@ -72,8 +77,33 @@ namespace MultiRept
 
 			Directory.Delete(path);
 		}
-	}
 
+		public static string GetMyDisplayName(Encoding encoding)
+		{
+			string encodingName;
+			if (encoding is UTF8Encoding)
+			{
+				var utf8 = encoding as UTF8Encoding;
+				encodingName = utf8.GetPreamble().Length == 0 ? "UTF-8" : "UTF-8(BOM)";
+			}
+			else switch (encoding.CodePage)
+				{
+					case 20932:
+					case 51932:
+						encodingName = "EUC-JP";
+						break;
+					case 932:
+						encodingName = "SJIS";
+						break;
+					default:
+						encodingName = encoding.WebName;
+						break;
+
+				}
+
+			return encodingName;
+		}
+	}
 
 	public static class StreamReaderEnhance
 	{

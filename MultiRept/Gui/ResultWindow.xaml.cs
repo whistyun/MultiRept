@@ -54,14 +54,33 @@ namespace MultiRept.Gui
 		}
 
 		private int resultListStartIndex;
+		private string filePath;
 
-
-		public void StartLog()
+		public void Begin(string filepath)
 		{
+			filePath = filepath;
 			resultListStartIndex = ResultList.Count;
 		}
 
-		public void AddError(string filePath, string message)
+		public void Inform(int line, Encoding encoding, string contents)
+		{
+			this.Inform(line, Util.GetMyDisplayName(encoding), contents);
+		}
+
+		public void Inform(int line, string encodingName, string contents)
+		{
+			var relPath = "." + filePath.Substring(folderPath.Length);
+			ResultList.Add(new ResultData
+			{
+				FilePath = relPath,
+				LineNo = line,
+				EncodingName = encodingName,
+				Contents = contents,
+				IsError = false
+			});
+		}
+
+		public void EndError(string message)
 		{
 			if (resultListStartIndex != -1 && ResultList.Count > resultListStartIndex)
 			{
@@ -75,19 +94,6 @@ namespace MultiRept.Gui
 				FilePath = relPath,
 				Contents = "<エラー> " + message.Trim(),
 				IsError = true
-			});
-		}
-
-		public void Add(string filePath, int line, string encodingName, string contents)
-		{
-			var relPath = "." + filePath.Substring(folderPath.Length);
-			ResultList.Add(new ResultData
-			{
-				FilePath = relPath,
-				LineNo = line,
-				EncodingName = encodingName,
-				Contents = contents,
-				IsError = false
 			});
 		}
 
