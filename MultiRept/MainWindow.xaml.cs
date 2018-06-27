@@ -137,9 +137,8 @@ namespace MultiRept
 				db.NewAct();
 
 				var logic = new ReplaceLogic(db);
-				logic.Begin += logWindow.Begin;
-				logic.Inform += logWindow.Inform;
-				logic.ErrorEnd += logWindow.EndError;
+				logic.AddListener(logWindow.SummaryInformer);
+				logic.AddListener(logWindow.DetailInformer);
 
 				var progress = new Progress<int>(SetProgress);
 				await Task.Run(() => logic.Do(param, progress));

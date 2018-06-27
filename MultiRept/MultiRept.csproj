@@ -61,7 +61,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Diff\DupleViewWindow.xaml.cs">
+    <Compile Include="Gui\DupleViewWindow.xaml.cs">
       <DependentUpon>DupleViewWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Encode\ByteExtends.cs" />
@@ -77,7 +77,7 @@
     </Compile>
     <Compile Include="Logic.cs" />
     <Compile Include="Util.cs" />
-    <Page Include="Diff\DupleViewWindow.xaml">
+    <Page Include="Gui\DupleViewWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Gui\ErrorableTextBox.xaml">

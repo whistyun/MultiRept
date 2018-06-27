@@ -48,6 +48,30 @@ namespace MultiRept
 		}
 	}
 
+	/// <summary>
+	/// 特定のファイルに対して変更箇所のみを知るためのインターフェース
+	/// </summary>
+	public interface IReplaceAbstractListener
+	{
+		void Begin(string filePath);
+		void Inform(int lineAt, Encoding encoding, string line);
+		void End();
+		void ErrorEnd(string message);
+	}
+
+	/// <summary>
+	/// 特定のファイルに対してどのような置換処理が行われたか詳細に知るためのインターフェース
+	/// </summary>
+	public interface IReplaceDetailListener
+	{
+		void Begin(string filePath);
+		void AddPlain(string plainText);
+		void AddDiff(string original, string changed);
+		void NewLine();
+		void End();
+		void ErrorEnd(string message);
+	}
+
 	public delegate void Begin(string filePath);
 	public delegate void Inform(int lineAt, Encoding encoding, string line);
 	public delegate void End();
@@ -68,9 +92,31 @@ namespace MultiRept
 		/// <summary>置換処理が異常終了したことを通知します</summary>
 		public event ErrorEnd ErrorEnd;
 
+		public event Action<string> AddPlain;
+		public event Action<string, string> AddDiff;
+		public event Action NewLine;
+
 		public ReplaceLogic(FileStore db)
 		{
 			this.db = db;
+		}
+
+		public void AddListener(IReplaceAbstractListener listener)
+		{
+			Begin += listener.Begin;
+			Inform += listener.Inform;
+			End += listener.End;
+			ErrorEnd += listener.ErrorEnd;
+		}
+
+		public void AddListener(IReplaceDetailListener listener)
+		{
+			Begin += listener.Begin;
+			AddPlain += listener.AddPlain;
+			AddDiff += listener.AddDiff;
+			NewLine += listener.NewLine;
+			End += listener.End;
+			ErrorEnd += listener.ErrorEnd;
 		}
 
 		public void Do(ReplaceLogicParam param, IProgress<int> informer)
@@ -133,6 +179,7 @@ namespace MultiRept
 				{
 					ErrorEnd?.Invoke(ioe.Message);
 				}
+
 				informer.Report((int)(Int32.MaxValue * index / total));
 				++index;
 			}
@@ -199,9 +246,19 @@ namespace MultiRept
 								replaceOcc = true;
 
 								// ヒット位置より前の文字をそのままコピー
-								newLine.Append(line.Substring(0, match.Index));
+								var beforeText = line.Substring(0, match.Index);
+								newLine.Append(beforeText);
 
-								// ヒット位置の文字を変更
+								var bgnIdx = startAt;
+								var endIdx = match.Index;
+								if (bgnIdx != endIdx)
+								{
+									AddPlain?.Invoke(line.Substring(bgnIdx, endIdx - bgnIdx));
+								}
+
+								int newLineLength = newLine.Length;
+
+								// ヒット位置の文字を置換後の文字に変更
 								foreach (ExtendReplaceTo rep in hitKey.ReplaceToPattern)
 								{
 									if (rep.Type == ReplaceToType.Plain)
@@ -235,7 +292,11 @@ namespace MultiRept
 									}
 								}
 
-								// ヒット位置より後の文字をそのままコピー
+								AddDiff?.Invoke(
+									match.Groups[0].Value,
+									newLine.ToString().Substring(newLineLength));
+
+								// ヒット位置より後の文字をそのままコピーし、再検索
 								startAt = newLine.Length;
 								newLine.Append(line.Substring(match.Index + match.Length));
 								line = newLine.ToString();
@@ -249,13 +310,24 @@ namespace MultiRept
 
 						} while (startAt < line.Length);
 
+						// startAt < line.Lengthなら、置換されなかった文字があるはずなので、通知
+						if (startAt < line.Length)
+						{
+							AddPlain?.Invoke(line.Substring(startAt));
+						}
+
+						// 置換処理が行われたことを通知
 						if (findMatch)
 						{
 							Inform?.Invoke(lineCnt, encoding, line);
 						}
 
 						writer.Write(line);
-						if (lnCd != null) writer.Write(lnCd);
+						if (lnCd != null)
+						{
+							writer.Write(lnCd);
+							NewLine?.Invoke();
+						}
 					}
 				}
 
