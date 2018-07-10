@@ -324,8 +324,8 @@ namespace MultiRept.Gui
 			if (lineStart)
 			{
 				lineStart = false;
-				originalWriter.Write("<TextBlock TextWrapping='NoWrap'>");
-				changedWriter.Write("<TextBlock TextWrapping='NoWrap'>");
+				originalWriter.Write("<TextBlock TextWrapping='NoWrap' xml:space='preserve'>");
+				changedWriter.Write("<TextBlock TextWrapping='NoWrap' xml:space='preserve'>");
 			}
 		}
 	}
