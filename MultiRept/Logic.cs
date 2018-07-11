@@ -127,22 +127,27 @@ namespace MultiRept
 			//ディレクトリを見つけた場合は、一度スタックにつめる
 			var directories = new Stack<String>();
 			directories.Push(param.RootDir);
+
+			//ディレクトリの中身を確認
 			while (directories.Count > 0)
 			{
+				// ファイルを取得し、ファイル名が処理対象のパターンを満たすか確認
 				var directory = directories.Pop();
 				foreach (var newFile in Directory.GetFiles(directory))
 				{
+					// 隠しファイルは無視するか？
 					if (param.IgnoreHide)
 					{
 						var fileinfo = new FileInfo(newFile);
 						if (fileinfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
 					}
 
+					// パターンのチェック
 					foreach (var filePtnRegex in param.FilePatternRegexes)
 					{
 						if (filePtnRegex.IsMatch(newFile))
 						{
-							//処理対象
+							// 処理対象
 							targets.Add(newFile);
 							break;
 						}
@@ -152,21 +157,21 @@ namespace MultiRept
 				// ディレクトリを取得し、スタックに詰める
 				foreach (var newDirectory in Directory.GetDirectories(directory))
 				{
+					// 隠しファイルは無視するか？
 					if (param.IgnoreHide)
 					{
 						var dirInfo = new DirectoryInfo(newDirectory);
 						if (dirInfo.Attributes.HasFlag(FileAttributes.Hidden)) continue;
 					}
 
+					// 一度スタックにつめる
 					directories.Push(newDirectory);
 				}
 			}
 
+			// ファイルを1件ずつ置換処理開始
 			long index = 1;
 			long total = targets.Count;
-
-			if (total == 0) { return; }
-
 			foreach (var target in targets)
 			{
 				try
