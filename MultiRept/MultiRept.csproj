@@ -61,6 +61,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Gui.Converter\DevideConverter.cs" />
     <Compile Include="Gui\DupleViewWindow.xaml.cs">
       <DependentUpon>DupleViewWindow.xaml</DependentUpon>
     </Compile>
