@@ -29,7 +29,6 @@
                 VerticalAlignment="Stretch"
                 MouseLeftButtonDown="CanvasClicked"
                 MouseMove="CanvasMouseMove"
-                Background="LightGray"
                 >
             <Canvas.RenderTransform>
                 <ScaleTransform x:Name="canvasScale" ScaleY="1">

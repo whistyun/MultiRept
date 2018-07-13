@@ -68,8 +68,33 @@ namespace MultiRept.Gui
 					binding.ConverterParameter = TotalLineCount.ToString();
 					BindingOperations.SetBinding(canvasScale, ScaleTransform.ScaleYProperty, binding);
 
+
+					var backgroundRect = new Rectangle()
+					{
+						Width = canvas.Width,
+						Height = TotalLineCount,
+						Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("LightGray"))
+					};
+					Canvas.SetLeft(backgroundRect, 0);
+					Canvas.SetTop(backgroundRect, 0);
+					canvas.Children.Add(backgroundRect);
+
+
+					var pageRect = new Rectangle()
+					{
+						Width = canvas.Width - 8,
+						Height = TotalLineCount,
+						Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White")),
+						Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("Black")),
+						StrokeThickness = 1,
+					};
+					Canvas.SetLeft(pageRect, 4);
+					Canvas.SetTop(pageRect, 0);
+					canvas.Children.Add(pageRect);
+
+
 					// あり/なしの一覧から、変更箇所の位置と厚さを確認する
-					var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("Yellow"));
+					var brush = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0x00));
 					for (int i = 0; i < isChangeList.Count; ++i)
 					{
 						if (isChangeList[i])
@@ -83,11 +108,11 @@ namespace MultiRept.Gui
 
 							var rect = new Rectangle()
 							{
-								Width = canvas.Width - 8,
+								Width = canvas.Width - 10,
 								Height = thickness,
 								Fill = brush
 							};
-							Canvas.SetLeft(rect, 4);
+							Canvas.SetLeft(rect, 5);
 							Canvas.SetTop(rect, startIdx);
 							canvas.Children.Add(rect);
 						}
@@ -99,7 +124,7 @@ namespace MultiRept.Gui
 						Width = canvas.Width,
 						Stroke = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0xFF)) { Opacity = 0.9 },
 						StrokeThickness = 1,
-						Fill = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0xFF)) { Opacity = 0.2 }
+						Fill = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0xFF)) { Opacity = 0.4 }
 					};
 					canvas.Children.Add(rectangle);
 

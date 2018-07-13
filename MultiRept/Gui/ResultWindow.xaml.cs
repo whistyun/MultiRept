@@ -167,6 +167,11 @@ namespace MultiRept.Gui
 
 		public void Inform(int line, Encoding encoding, string contents)
 		{
+			if (contents.Length > 150)
+			{
+				contents = contents.Substring(0, 150) + "...";
+			}
+
 			this.Inform(line, Util.GetMyDisplayName(encoding), contents);
 		}
 
