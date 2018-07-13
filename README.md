@@ -10,9 +10,13 @@
 
 ### メインウィンドウ
 
-![メインウィンドウ](https://raw.githubusercontent.com/whistyun/MultiRept/image/screenshot/window.png)
+![メインウィンドウ](https://raw.githubusercontent.com/whistyun/MultiRept/image/screenshot-1.2/window.png)
 
 
 ### 置換結果の表示ダイアログ
 
-![置換結果表示](https://raw.githubusercontent.com/whistyun/MultiRept/image/screenshot/replacedialog.png)
+![置換結果表示](https://raw.githubusercontent.com/whistyun/MultiRept/image/screenshot-1.2/replacedialog.png)
+
+### 差分表示
+
+![置換差分表示](https://raw.githubusercontent.com/whistyun/MultiRept/image/screenshot-1.2/diff.png)
