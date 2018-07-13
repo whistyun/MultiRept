@@ -14,6 +14,7 @@ using System.Windows.Shapes;
 using System.IO;
 using System.Windows.Markup;
 using MultiRept.Gui.Converter;
+using System.Globalization;
 
 namespace MultiRept.Gui
 {
@@ -23,6 +24,8 @@ namespace MultiRept.Gui
 	/// </summary>
 	public partial class DupleViewWindow : Window
 	{
+		private Rectangle rectangle = new Rectangle();
+
 		public int TotalLineCount
 		{
 			get;
@@ -66,16 +69,6 @@ namespace MultiRept.Gui
 					BindingOperations.SetBinding(canvasScale, ScaleTransform.ScaleYProperty, binding);
 
 					// あり/なしの一覧から、変更箇所の位置と厚さを確認する
-					var backRect = new Rectangle
-					{
-						Width = 10,
-						Height = TotalLineCount,
-						Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("LightGray"))
-					};
-					Canvas.SetLeft(backRect, 0);
-					Canvas.SetTop(backRect, 0);
-					canvas.Children.Add(backRect);
-
 					var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("Yellow"));
 					for (int i = 0; i < isChangeList.Count; ++i)
 					{
@@ -90,15 +83,33 @@ namespace MultiRept.Gui
 
 							var rect = new Rectangle()
 							{
-								Width = 10,
+								Width = canvas.Width - 8,
 								Height = thickness,
 								Fill = brush
 							};
-							Canvas.SetLeft(rect, 0);
+							Canvas.SetLeft(rect, 4);
 							Canvas.SetTop(rect, startIdx);
 							canvas.Children.Add(rect);
 						}
 					}
+
+
+					rectangle = new Rectangle()
+					{
+						Width = canvas.Width,
+						Stroke = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0xFF)) { Opacity = 0.9 },
+						StrokeThickness = 1,
+						Fill = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0xFF)) { Opacity = 0.2 }
+					};
+					canvas.Children.Add(rectangle);
+
+					// キャンバス内のインジケータのバインディング設定
+					var mbinding = new MultiBinding();
+					mbinding.Converter = new MyDupleViewWindowConverter();
+					mbinding.Bindings.Add(new Binding("ViewportHeight") { Source = leftOriginal });
+					mbinding.Bindings.Add(new Binding("TotalLineCount") { Source = this });
+					mbinding.Bindings.Add(new Binding("ExtentHeight") { Source = leftOriginal });
+					BindingOperations.SetBinding(rectangle, Rectangle.HeightProperty, mbinding);
 				}
 			}
 		}
@@ -109,7 +120,23 @@ namespace MultiRept.Gui
 			{
 				using (FileStream fStream = new FileStream(fileName, FileMode.OpenOrCreate))
 				{
-					scrollViewer.Content = XamlReader.Load(fStream);
+					var clientElement = XamlReader.Load(fStream) as UIElement;
+					DockPanel.SetDock(clientElement, Dock.Left);
+
+					/*
+					 * コンテンツを直接ScrollViewerに張り付けた場合、
+					 * ScrollViewerの横サイズに合わせて、コンテンツもサイズ変更される。
+					 * 
+					 * コンテンツのサイズ変更処理に多大なコストがかかる場合、
+					 * ウィンドウサイズ変更がもたつくため、DockPanelを使用し、
+					 * コンテンツより処理の軽いもの(Canvas)にサイズ変更を肩代わりさせる。
+					 */
+					var dockPanel = new DockPanel();
+					dockPanel.LastChildFill = true;
+					dockPanel.Children.Add(clientElement);
+					dockPanel.Children.Add(new Canvas());
+
+					scrollViewer.Content = dockPanel;
 				}
 			}
 		}
@@ -128,24 +155,55 @@ namespace MultiRept.Gui
 			scrollByCanvas(posi.Y);
 		}
 
-		private void scrollByCanvas(double mousePointY) {
+		private void scrollByCanvas(double mousePointY)
+		{
 			double percent = mousePointY / TotalLineCount;
 			leftOriginal.ScrollToVerticalOffset(leftOriginal.ScrollableHeight * percent);
 		}
 
 		private void SyncScrollChanged(object sender, ScrollChangedEventArgs e)
 		{
-			var point = e.VerticalOffset;
-
-			if (rightChanged.VerticalOffset != point)
+			if (e.VerticalChange != 0)
 			{
-				rightChanged.ScrollToVerticalOffset(point);
-			}
+				var point = e.VerticalOffset;
 
-			if (leftOriginal.VerticalOffset != point)
-			{
-				leftOriginal.ScrollToVerticalOffset(point);
+				if (rightChanged.VerticalOffset != point)
+				{
+					rightChanged.ScrollToVerticalOffset(point);
+				}
+
+				if (leftOriginal.VerticalOffset != point)
+				{
+					leftOriginal.ScrollToVerticalOffset(point);
+				}
+
+				if (sender == leftOriginal)
+				{
+					var scrlRate = leftOriginal.VerticalOffset / (leftOriginal.ExtentHeight - leftOriginal.ViewportHeight);
+
+					var viewRate = leftOriginal.ViewportHeight / leftOriginal.ExtentHeight;
+					var viewLine = TotalLineCount * viewRate;
+
+					Canvas.SetTop(rectangle, scrlRate * (TotalLineCount - viewLine));
+				}
 			}
+		}
+	}
+
+	class MyDupleViewWindowConverter : IMultiValueConverter
+	{
+		public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+		{
+			var v0 = (double)values[0];
+			var v1 = (int)values[1];
+			var v2 = (double)values[2];
+
+			return v0 * v1 / v2;
+		}
+
+		public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+		{
+			throw new NotImplementedException();
 		}
 	}
 }

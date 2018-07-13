@@ -18,26 +18,21 @@
             <RowDefinition Height="450*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="30"/>
+            <ColumnDefinition Width="40"/>
             <ColumnDefinition Width="200*"/>
             <ColumnDefinition Width="200*"/>
         </Grid.ColumnDefinitions>
 
         <Canvas x:Name="diffViewer"
                 Grid.Row="1" Grid.Column="0"
-                HorizontalAlignment="Stretch"
+                Width="40"
                 VerticalAlignment="Stretch"
                 MouseLeftButtonDown="CanvasClicked"
                 MouseMove="CanvasMouseMove"
+                Background="LightGray"
                 >
             <Canvas.RenderTransform>
                 <ScaleTransform x:Name="canvasScale" ScaleY="1">
-                    <ScaleTransform.ScaleX>
-                        <Binding Path="ActualWidth" ElementName="diffViewer"
-                            Converter="{StaticResource devideConv}"
-                            ConverterParameter="10"
-                            />
-                    </ScaleTransform.ScaleX>
                 </ScaleTransform>
             </Canvas.RenderTransform>
         </Canvas>
