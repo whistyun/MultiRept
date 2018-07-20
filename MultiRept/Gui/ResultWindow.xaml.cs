@@ -43,16 +43,32 @@ namespace MultiRept.Gui
 		private void Row_DoubleClick(object sender, MouseButtonEventArgs e)
 		{
 			DataGridRow row = sender as DataGridRow;
-			ResultData data = row.Item as ResultData;
+			ShowDiff(row.Item as ResultData);
+		}
 
-			if (detailDic.ContainsKey(data.FilePath))
+		private void Button_Click(object sender, RoutedEventArgs e)
+		{
+			var row = dataGrid.SelectedItem as ResultData;
+			if (row != null)
 			{
-				//存在する場合は、Diff用のウィンドウを開く
-				var fileSet = detailDic[data.FilePath];
+				ShowDiff(row);
+			}
 
-				var window = new DupleViewWindow();
-				window.Load(data.FilePath, fileSet.Item1, fileSet.Item2);
-				window.Show();
+		}
+
+		private void ShowDiff(ResultData data)
+		{
+			if (data != null)
+			{
+				if (detailDic.ContainsKey(data.FilePath))
+				{
+					//存在する場合は、Diff用のウィンドウを開く
+					var fileSet = detailDic[data.FilePath];
+
+					var window = new DupleViewWindow();
+					window.Load(data.FilePath, fileSet.Item1, fileSet.Item2);
+					window.Show();
+				}
 			}
 		}
 

@@ -18,6 +18,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="auto"/>
             <ColumnDefinition Width="185*"/>
+            <ColumnDefinition Width="auto"/>
         </Grid.ColumnDefinitions>
 
         <Label
@@ -28,6 +29,7 @@
 
         <Label x:Name="FolderLabel" 
             Grid.Row="0" Grid.Column="1"
+            Grid.ColumnSpan="2"
             Content="Label"
             HorizontalAlignment="Stretch" VerticalAlignment="Top"
         />
@@ -44,9 +46,14 @@
             HorizontalAlignment="Stretch" VerticalAlignment="Top"
         />
 
+        <Button 
+            Grid.Row="1" Grid.Column="2"
+            Content="差分表示" Click="Button_Click"
+        />
+
         <DataGrid x:Name="dataGrid"
                 Grid.Row="2" Grid.Column="0"
-                Grid.ColumnSpan="2"
+                Grid.ColumnSpan="3"
                 AutoGenerateColumns="False"
                 ScrollViewer.CanContentScroll="True" 
                 IsReadOnly ="True"
