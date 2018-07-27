@@ -176,13 +176,13 @@ namespace MultiRept
 			{
 				try
 				{
-					Begin?.Invoke(target);
+					if (Begin != null) Begin.Invoke(target);
 					TryReplace(target, param.Encoding, param.Keywords);
-					End?.Invoke();
+					if (End != null) End.Invoke();
 				}
 				catch (IOException ioe)
 				{
-					ErrorEnd?.Invoke(ioe.Message);
+					if (ErrorEnd != null) ErrorEnd.Invoke(ioe.Message);
 				}
 
 				informer.Report((int)(Int32.MaxValue * index / total));
@@ -258,7 +258,7 @@ namespace MultiRept
 								var endIdx = match.Index;
 								if (bgnIdx != endIdx)
 								{
-									AddPlain?.Invoke(line.Substring(bgnIdx, endIdx - bgnIdx));
+									if (AddPlain != null) AddPlain.Invoke(line.Substring(bgnIdx, endIdx - bgnIdx));
 								}
 
 								int newLineLength = newLine.Length;
@@ -297,9 +297,9 @@ namespace MultiRept
 									}
 								}
 
-								AddDiff?.Invoke(
-									match.Groups[0].Value,
-									newLine.ToString().Substring(newLineLength));
+								if (AddDiff != null) AddDiff.Invoke(
+									  match.Groups[0].Value,
+									  newLine.ToString().Substring(newLineLength));
 
 								// ヒット位置より後の文字をそのままコピーし、再検索
 								startAt = newLine.Length;
@@ -318,20 +318,20 @@ namespace MultiRept
 						// startAt < line.Lengthなら、置換されなかった文字があるはずなので、通知
 						if (startAt < line.Length)
 						{
-							AddPlain?.Invoke(line.Substring(startAt));
+							if (AddPlain != null) AddPlain.Invoke(line.Substring(startAt));
 						}
 
 						// 置換処理が行われたことを通知
 						if (findMatch)
 						{
-							Inform?.Invoke(lineCnt, encoding, line);
+							if (Inform != null) Inform.Invoke(lineCnt, encoding, line);
 						}
 
 						writer.Write(line);
 						if (lnCd != null)
 						{
 							writer.Write(lnCd);
-							NewLine?.Invoke();
+							if (NewLine != null) NewLine.Invoke();
 						}
 					}
 				}
@@ -414,19 +414,22 @@ namespace MultiRept
 			if (userLockedfileList.Count != 0)
 			{
 				informer.Report(Int32.MaxValue);
-				Error?.Invoke(userLockedfileList);
+				if (Error != null) Error.Invoke(userLockedfileList);
 				return false;
 			}
 
 			// 変更がある場合は、確認の割り込みを行う
 			if (userChangedfileList.Count != 0)
 			{
-				var rtnVal = Confirm?.Invoke(userChangedfileList);
-				if (rtnVal.HasValue && !rtnVal.Value)
+				if (Confirm != null)
 				{
-					// キャンセル
-					informer.Report(Int32.MaxValue);
-					return false;
+					var rtnVal = Confirm.Invoke(userChangedfileList);
+					if (!rtnVal)
+					{
+						// キャンセル
+						informer.Report(Int32.MaxValue);
+						return false;
+					}
 				}
 			}
 
@@ -444,7 +447,10 @@ namespace MultiRept
 					catch (IOException)
 					{
 						// ユーザさんが処理中にロックをかけた
-						InformUserInterrupt?.Invoke(fileinfo.FilePath);
+						if (InformUserInterrupt != null)
+						{
+							InformUserInterrupt.Invoke(fileinfo.FilePath);
+						}
 					}
 				} while (true);
 
