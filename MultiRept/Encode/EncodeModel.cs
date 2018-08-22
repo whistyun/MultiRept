@@ -91,9 +91,11 @@ namespace EncodeDetector.Model
 
 		public override int Check(byte[] buffer, ref int index, int endIndex)
 		{
+			// 文字コード表よりざっくりと実装
 			// [0x00-0x7F]
 			// [0xA1-0xDF]
-			// [0x81-0x9F or 0xE0-0xFC][0x40-0x7E or 0x80-0xFC]
+			// [0x81-0x9F or 0xE0-0xEA or 0xED-0xEE or 0xF0-0xFB ][0x40-0x7E or 0x80-0xFC]
+			// [0xFC][0x40-0x4B]
 
 			int score = 0;
 			do
@@ -110,7 +112,8 @@ namespace EncodeDetector.Model
 					//JIS X 0201
 					score += 1;
 				}
-				else if (b1.Between(0x81, 0x9F) || b1.Between(0xE0, 0xFC))
+
+				else if (b1.Between(0x81, 0x9F) || b1.Between(0xE0, 0xEA) || b1.Between(0xED, 0xEE) || b1.Between(0xF0, 0xFB))
 				{
 					byte b2;
 					if (buffer.Next(ref index, out b2))
@@ -124,6 +127,22 @@ namespace EncodeDetector.Model
 					}
 					else break;
 				}
+
+				else if (b1 == 0xFC)
+				{
+					byte b2;
+					if (buffer.Next(ref index, out b2))
+					{
+						if (b2.Between(0x40, 0x4B))
+						{
+							score += b2j(b1, b2);
+							continue;
+						}
+						else return -1;
+					}
+					else break;
+				}
+
 				else return -1;
 
 			} while (++index < endIndex);
