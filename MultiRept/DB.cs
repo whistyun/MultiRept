@@ -126,6 +126,12 @@ namespace MultiRept
 
 		public void Insert(string filepath, string hash, Delegate invoker, params object[] param)
 		{
+			//置換対象のファイルが読み取り専用の場合はエラー
+			if (File.GetAttributes(filepath).HasFlag(FileAttributes.ReadOnly))
+			{
+				throw new IOException("読み取り専用です");
+			}
+
 			var key = new ReplacedFile()
 			{
 				ActNo = actNo,
